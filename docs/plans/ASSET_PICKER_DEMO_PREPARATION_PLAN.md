@@ -9,12 +9,13 @@
 **Filed and reconciled:** 2026-09-20
 
 **Latest reconciliation:** 2026-09-26 UTC (four E2E service-flow guides and architecture-folder
-reconciliation prepared against
-`main@8aa4035b`; roadmap/root README/v5, backlog and runbooks filed;
+reconciliation audited against `main@8aa4035b` and filed through #328 at `598bdf17`;
+advisor route removal reviewed locally at `35779e2e`, not delivered;
+roadmap/root README/v5, backlog and runbooks filed;
 post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
-**Owner approval required before push/PR and merge of the flow/architecture reconciliation:** each
+**Owner approval required before push/PR and merge of this advisor-status follow-up and code fix:** each
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
 
@@ -68,8 +69,14 @@ The follow-up corrects the showcase-save wording and service failure/profile/sec
 It adds an OPEN [portfolio advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md):
 source confirms missing subject binding; Azure reachability is unverified because the source
 insight-service environment omits its portfolio URL. The prior suite did not test this endpoint.
-This new finding has no owner non-blocking disposition; security treatment is a separate decision,
-not a code fix or deployment authorized by this documentation bundle.
+The chosen treatment is removal of the unused route: `435f61c6` plus `35779e2e` on `598bdf17`
+is reviewed locally, with no alias or other production HTTP caller of the retained advisor service.
+The item stays OPEN, not waived: code publication/merge, scoped insight-service deployment and
+artifact-bound live validation are pending under owner approval. Codex checked source and all
+eight handoff hashes, saved RED/GREEN XML and local aggregate reports; it did not rerun Java tests
+or perform live/cloud reads. Results are 1,848 unit tests total (1,839 passed, 9 live/opt-in skips)
+and 39/39 integration passes. Four re-exposure mutants are reported caught; Fable independently
+reproduced the key RED/GREEN test. These are source-remediation proofs, not deployed closure.
 The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
 [enhancements v5](../../roadmap_enhancements_v5.md) are filed through #326 (`8aa4035b`),
 with the owner's three requests still deferred. There is no feature implementation approval.
@@ -191,8 +198,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial merged coverage | Decide advisor treatment; independently review/file this closure. Any Gate E audit needs separate design/approval. Do not inherit earlier non-blocking decisions |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status now at `7ea17252`, reviewed before the content-preserving rebase onto #327; the later `7ea17252..2af62b29` merge/deploy/probe-status review required citation/wording corrections, addressed by this follow-up. Filing follows the publication rule above. The operator script remains a private reviewed draft | Check the narrow citation/wording follow-up, then file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Advisor IDOR remains OPEN: reviewed local removal at `35779e2e`, not merged/deployed/live-validated. Header proof is OPEN with partial merged coverage | Authorize advisor publication/merge, then separately scoped deployment/validation after packet review. Any Gate E audit needs separate design/approval. Do not inherit earlier non-blocking decisions |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), roadmap/root README/v5 through #326 (`8aa4035b`), and flow/architecture plus price-write closure through #328 (`598bdf17`, reviewed head `5ffdd305`). This later advisor local-remediation status follows the publication rule above. The operator script remains a private reviewed draft | Independently review/file this narrow status follow-up under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -205,9 +212,10 @@ gate remained open within the then-accepted desktop-demo scope. This does not co
 documentation or media package, or close accepted/unverified defects.
 That conclusion concerns the accepted evidence scope: the later price-write defect and advisor
 IDOR were not exercised by those checks. Price-write removal now has its own merge/deploy/probe
-closure, not an inherited suite PASS. The advisor IDOR remains **OPEN with owner disposition
-pending**, and its live exploitability is untested; decide its treatment before expanding the
-readiness claim. Historical-price audit Gate E is optional/open and certifies no past-data integrity.
+closure, not an inherited suite PASS. The advisor IDOR remains **OPEN with reviewed local removal
+pending delivery**; its live exploitability is untested. Merge, deploy and validate the fix under
+the relevant approvals before claiming live remediation. Historical-price audit Gate E is
+optional/open and certifies no past-data integrity.
 The header-sanitization regression-proof gap is separate OPEN test work, not a current
 bypass proved by this source audit.
 
@@ -785,8 +793,9 @@ new feature requests remain deferred and do not block the freeze.
   changed.
   The [architecture folder](../architecture/README.md) is source-reconciled against
   `main@8aa4035b` (2026-09-26 UTC), including the PlantUML source, current references and
-  historical classification. Preparation is complete; independent review and filing are still
-  required. No diagram rendering or fresh serving-state verification is claimed.
+  historical classification. That source audit is reviewed and filed through #328 (`598bdf17`);
+  the broader deployed-behavior reconciliation remains open. No diagram rendering or fresh
+  serving-state verification is claimed. This later advisor-status update has its own filing gate.
 - [ ] Document signup, authentication, portfolio mutation, conflict, persistence, reset,
   price/freshness, chatbot, rollback, and multi-user E2E flows.
   The four existing [service-flow guides](../e2e-flows/) have been source-audited and corrected
@@ -800,12 +809,13 @@ new feature requests remain deferred and do not block the freeze.
 Mandatory factual status records may be updated earlier. The comprehensive documentation pass
 belongs here and must not delay Phase 1.
 
-**Flow/architecture filing rule:** the corrected service-flow guides and architecture-folder
-reconciliation count as filed only when their independently reviewed, owner-authorized carrying PR merges into
-`main`. An unmerged branch copy is a candidate. No new runtime verdict or defect closure follows
-from source reconciliation. In particular, the guides document B2's exact read-only-write
-exceptions and distinguish the separate path-ID-based portfolio-advisor endpoint from the
-accepted ticker-chat path; advisor ownership authorization is not established by this audit.
+**Flow/architecture filing rule:** the original source reconciliation is reviewed and filed through
+#328 (`598bdf17`). Later changes count as filed only when their independently reviewed,
+owner-authorized carrying PR merges into `main`; an unmerged branch copy is a candidate. No new
+runtime verdict or defect closure follows from source reconciliation. The guides distinguish
+B2's exact read-only-write exceptions, the baseline path-ID advisor defect and the accepted
+ticker-chat path. The separately reviewed local advisor removal remains pending code delivery
+and live validation, not closed by the documentation audit.
 
 ---
 

@@ -90,13 +90,20 @@ clean downstream history/caches. Optional historical audit Gate E remains open w
 design/approval required. Closure uses saved deploy logs and the terminal-output transcription,
 not a new Codex live or cloud read; no broader security acceptance is implied.
 
-The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
+At the audited baseline, the separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
 portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.
 This is a source-confirmed [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md),
 not proven caller-owned access. Azure's checked-in insight environment omits the portfolio URL
 and the default points to localhost:8081; absent another override it is expected to fail. This
 is not live-verified or a security control. Compose/AWS source supplies the URL. No exploit was
-tested here; the new OPEN finding has no owner non-blocking disposition or fix/deploy approval.
+tested by this audit; the OPEN finding has no owner non-blocking waiver.
+
+Reviewed local commits `435f61c6` and `35779e2e` remove that route and its controller service
+injection, with no alias. The analysis implementation remains, but no other production HTTP
+handler calls it. Any future exposure must use the gateway-authenticated subject. Saved local
+RED/GREEN evidence and reported re-exposure mutants support source remediation, not a deployed
+security claim. Publication, scoped insight-service deployment and artifact-bound live validation
+remain pending under owner approval; the linked backlog item stays OPEN.
 
 ## 4. Holdings, valuation and analytics
 

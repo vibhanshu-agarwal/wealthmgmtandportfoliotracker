@@ -21,7 +21,12 @@ cover this later addition. Claude accepted the documentation corrections now at 
 and local-remediation status now at `7ea17252`; both reviews preceded the content-preserving
 rebase onto #327. Claude accepted the later merge/deploy/probe-status range
 `7ea17252..2af62b29` subject to citation/wording corrections, addressed by this follow-up.
-Publication remains governed by the rule above.
+The flow/architecture bundle and these additions are filed through #328 (`598bdf17`); Claude's
+final review accepted `5ffdd305` after the citation/wording corrections. Publication of later
+changes remains governed by the rule above.
+The advisor route removal is reviewed locally at `35779e2e` (including fix `435f61c6`), based on
+`598bdf17`; it is not merged, deployed or live-validated. Its item remains OPEN. Codex inspected
+source and saved test evidence, not a new Java run or live exploit. See the item for proof limits.
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
 the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional
@@ -87,7 +92,7 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
-| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **Source-confirmed IDOR; owner disposition pending.** Path-selected user ID is forwarded without subject comparison. Azure URL/reachability is unverified; missing source wiring is not an authorization control. |
+| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **OPEN; reviewed local route removal at `35779e2e`.** Not merged, deployed or live-validated. Original Azure reachability remains unverified; publication, scoped deployment and artifact-bound validation are pending, not waived. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |
