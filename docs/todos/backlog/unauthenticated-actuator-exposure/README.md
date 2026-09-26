@@ -1,6 +1,6 @@
 # Backlog: Unauthenticated Production Actuator Exposure Guard
 
-**Status:** Open — application hardening is in PR #254; deployment remains pending
+**Status:** Open — gateway hardening merged and deployed; live-negative proof/remaining assessment incomplete. Audited 2026-09-26 UTC.
 **Owner:** unassigned
 **Tracked in:** Task 3.7 production pre-checks, 2026-09-11
 
@@ -14,8 +14,14 @@ Fourteen endpoints were readable without authentication. The exposed surface inc
 which can contain application secrets, and endpoints including `loggers`, `refresh`, and
 `gateway/routes` that accept POST requests.
 
-The application fix is in PR #254. The production exposure remains until that fix is deployed and
-read back from the serving revision.
+The application fix merged in PR #254 at `006aa9e6`. The published
+[deployment completion record](../../../evidence/b2-task-8-9/deployment-completion-20260911.json)
+binds that source to run `34588465283`, gateway revision `0000081` and 100% traffic;
+the old "deployment pending" statement is superseded. Current `SecurityConfig` allows public
+health and denies other management routes, and `ActuatorExposureSecurityTest` covers sensitive
+GET/POST denial. No accepted live negative management-endpoint proof was located in this audit.
+Do not infer that the old broad exposure persists, or that runtime denial was independently
+verified here. Other-service assessment and a static-guard decision remain open.
 
 ## Follow-up
 

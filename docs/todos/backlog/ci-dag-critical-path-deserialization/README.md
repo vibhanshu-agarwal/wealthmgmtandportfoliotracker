@@ -1,6 +1,6 @@
 # Backlog: Experiment with CI critical-path de-serialization
 
-**Status:** Authorized for a bounded Cursor experiment
+**Status:** Open — mechanism merged; experiment acceptance/evidence reconciliation incomplete. Audited 2026-09-26 UTC.
 
 **Priority:** 1 of 3 CI optimization items
 
@@ -12,9 +12,27 @@
 
 ---
 
-## Problem
+## Current disposition — 2026-09-26 UTC
 
-The required CI jobs currently retain this expensive serial path:
+PR #306 (`d74664d0`, implementation `a07b017a`) already delivered two classifier-gated
+roots: `unit-tests` and `pact-consumer`; Docker now depends only on Pact. The current workflow
+and `WorkflowWiringTests` confirm this graph. Do not implement the old serial-path redesign again.
+The deliberate-failure fixture commit `4fa3dbc5` is not on current `main`.
+
+The [PR #306 body](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/306),
+read during this audit, reports a 55-green-run timing population, 0/52 joint first-failure attempts,
+about 593 seconds of expected latency benefit, and 52 classifier/33 status tests. Those reported
+inputs were not independently re-derived here. It explicitly says the live deliberate-failure
+experiment was **not run and not authorized by that PR**. The complete experiment outcome below,
+including actual failing-unit branch behavior/runner cost and independent acceptance or an explicit
+waiver of those remaining criteria, still needs to be recovered or dispositioned.
+Eight wiring tests passed unskipped during this audit; that proves topology, not experiment
+acceptance or a measured ten-minute improvement. This item stays OPEN for that evidence close-out,
+not for a missing DAG implementation. Historical approval below grants no new publication or dispatch.
+
+## Historical problem and experiment contract
+
+Before PR #306, the required CI jobs retained this expensive serial path:
 
 `unit-tests -> integration-tests -> pact-consumer -> docker-build-verify`
 

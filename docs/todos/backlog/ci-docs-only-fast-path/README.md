@@ -1,6 +1,6 @@
 # Backlog: Add a fail-closed docs-only CI fast path
 
-**Status:** Completed
+**Status:** Closed — completed; revalidated 2026-09-26 UTC.
 
 **Priority:** Delivered item 2 of the original 3-item CI optimization sequence
 
@@ -11,6 +11,12 @@
 ---
 
 ## Outcome
+
+**Audit evidence:** PR #199 merge `3396ec45` and its enforcement remain on `main@d515aa5b`.
+Current classifier/result-matrix source is present; 14 classifier tests and 8 workflow-wiring tests
+passed unskipped offline. Current external branch protection and live timings were not queried.
+The latest six-job docs-only probe limitation recorded in the
+[E2E master plan](../../../plans/ASSET_PICKER_E2E_MASTER_PLAN.md) is preserved, not newly proven.
 
 The docs-only fast path shipped in two reviewed stages:
 
@@ -66,7 +72,8 @@ until re-reviewed.
    closed.
 3. An unconditional `changes` job publishes the classification and rationale.
 4. Low-cost safety jobs remain unconditional.
-5. `unit-tests` contains the graph's single docs-only skip condition.
+5. Following PR #306, `unit-tests` and `pact-consumer` are the two gated roots and consume
+   the same docs-only classifier condition; the original single-root graph is historical.
 6. Expensive downstream jobs skip by dependency propagation.
 7. `ci-required` is required and uses `if: always()` to inspect every declared dependency.
 8. The aggregate requires exact agreement between the declared and observed job results.

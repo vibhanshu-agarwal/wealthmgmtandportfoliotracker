@@ -20,6 +20,11 @@ its own risks, recorded here rather than folded into an unrelated slice.
 
 ## Current state
 
+**Audit (2026-09-26 UTC):** still OPEN. The job remains absent from `ci-required.needs`,
+the expected-result map and classifier `ALL_JOBS`; its actionlint fetch remains unbounded.
+The implemented advisory job is not the requested required-gate promotion. No live branch-protection
+read or required-check change occurred; all acceptance criteria below still apply.
+
 - `deploy-workflow-contract` in `.github/workflows/ci-verification.yml` has no `if:`, `needs:` or
   `continue-on-error:`, but it is **not** one of the nine jobs `ci-required` depends on, so its
   result cannot block a merge. The nine-job set is pinned by `ci-required.needs`, by its

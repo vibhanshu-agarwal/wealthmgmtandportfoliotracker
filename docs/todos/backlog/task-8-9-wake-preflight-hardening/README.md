@@ -9,8 +9,9 @@
 and its [independent Fable review](../../../superpowers/plans/fable-review-task-8-9-postmerge-docs-20260913.md),
 [PR #273](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/273), and
 [PR #275](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/275).
-All items are non-blocking; this backlog does not block Task 8.9 or authorize or block a future Run
-A attempt. Task 8.9 remains independently blocked on its owner-authorized live serving proof.
+All items are non-blocking; this backlog does not reopen Task 8.9 or authorize a future Run
+A attempt. Task 8.9 is now COMPLETE / GO at accepted evidence head `8544d722`, published via
+PR #278 (`6e046741`); the independent source-hardening follow-ups remain open.
 
 ---
 
@@ -23,9 +24,17 @@ bound or authorize any live operation.
 
 ## Follow-ups
 
+**Backlog audit (2026-09-26 UTC):** five source/comment findings below remain visible:
+the string-command denylist, literal-asterisk explanation, regex argument extraction,
+stale citation and comparison paraphrase. Item 1 may be partially addressed by `df7c127d`'s
+short-path normalization in `stub_curl.cmd`; the double-trailing-backslash fixture/result
+has not been established, so its old reproduction claim is historical, not freshly confirmed.
+No wrapper or Production operation ran for this audit.
+
 1. **Minor — non-blocking: make the curl stub accept a temporary-folder path ending in two trailing
    backslashes.** The
-   current test stub refuses that spelling. This affects the stub's argument handling only; the
+   original test stub refused that spelling; recheck the current normalized-path stub before
+   changing it. This affects the stub's argument handling only; the
    production wrapper fails closed and no live wrapper defect was found. See
    [`stub_curl.cmd` lines 85–86](../../../../scripts/tests/stub_curl.cmd#L85-L86).
 2. **Minor — non-blocking: add a positive structural allowlist for network-capable string-constant
@@ -70,8 +79,9 @@ portfolio mutation, cleanup, flag change, deployment, publication, merge, or Tas
 ## Non-claims
 
 - This backlog entry does not claim that any Run A attempt passed or advanced Task 8.9.
-- It does not authorize Run A attempt 4, which remains unstarted, or replace the separate owner
-  approval required for any future bounded Production activation sequence.
+- It does not authorize any new Run A attempt or replace the separate owner approval required
+  for a future bounded Production activation sequence. The earlier unstarted-attempt wording is
+  superseded by the accepted Task 8.9 completion record.
 - It does not alter the requirement for a real 30-minute threshold, a trace-correlated Production
   login, deliberately non-golden-to-golden serving proof, manifest, and cleanup before Task 8.9 can
   be complete.

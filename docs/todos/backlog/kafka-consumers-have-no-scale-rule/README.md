@@ -8,6 +8,12 @@
 
 ## Status & Decision
 
+**Audit (2026-09-26 UTC):** retain OPEN. The common Container App module still has no Kafka
+scaler. The Azure root now explicitly sets `min_replicas = 0` for portfolio and insight;
+the old default-only wording is superseded. Demo warm-up keeps consumers awake during a
+session, but does not provide autonomous idle-time consumption. Retention/idle-period assessment
+and an explicit liveness policy remain outstanding; this audit made no broker/cloud read.
+
 **Open, deliberately not fixed by the observability spec.** Found while verifying whether that
 spec's deployed sink smoke check could run deterministically. It cannot, for a reason that turns
 out to be a pre-existing production characteristic rather than a test problem.
@@ -32,8 +38,8 @@ scaler of any kind in the module.
 
 `min_replicas` defaults to `0`
 (`modules/container-app/variables.tf:53`, described there as "0 = scale-to-zero (cost-optimal)"),
-and neither the `portfolio_service` nor the `insight_service` module invocation in `main.tf`
-overrides it.
+and both the `portfolio_service` and `insight_service` module invocations in the current Azure
+`main.tf` explicitly select `0` as well.
 
 ---
 

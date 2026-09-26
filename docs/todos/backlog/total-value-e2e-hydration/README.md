@@ -1,13 +1,23 @@
 # Backlog: [E2E] Resolve `total-value` Visibility and NextAuth Hydration in Standalone Build
 
-**Status:** ✅ Closed (2026-04-11)  
+**Status:** Closed — fixed (2026-04-11); revalidated 2026-09-26 UTC.
 **Priority:** Medium  
 **Area:** Frontend / E2E Testing (Playwright + NextAuth)  
 **Resolution:** Root cause was the Next.js standalone build missing `.next/static/` (JS bundles), `public/`, and `.env.local`. Without JS bundles, React never hydrated, so `useSession()` never ran and the page stayed as static server-rendered HTML with permanent skeletons. Fixed by updating `start:standalone` in `package.json` to copy all three assets before starting the server. See `docs/changes/CHANGES_INFRA_SUMMARY_2026-04-11_v1.md`.
 
 ---
 
-## Summary
+## Audit evidence — 2026-09-26 UTC
+
+Fixing commit `c6fd840892f4072cf0d7e64446d2ebd36ff3f475` records the asset-copy
+repair and closure of both total-value items. The frontend subsequently moved to static export
+(`next.config.ts`, `output: "export"`); `start:standalone` is not a current command.
+The old diagnostic hypotheses and market-value targets below are historical, not outstanding
+work. This closure does not prove all present valuation edge cases, which belong to the
+[open E2E coverage audit](../e2e-coverage-audit-post-asset-picker/README.md).
+No current browser or frontend suite was rerun for this audit.
+
+## Historical summary
 
 E2E tests 4 and 5 (`dashboard-data` and `golden-path`) are timing out waiting for
 `[data-testid="total-value"]` to become visible. The backend is verified 100% functional,

@@ -1,4 +1,4 @@
-# Backlog: Merged Azure Terraform Changes Don't Go Live Until Someone Remembers to Apply
+# Backlog: Visibility of merged-but-unapplied Azure Terraform changes
 
 **Status:** Open — 2026-08-12
 **Owner:** unassigned
@@ -6,7 +6,20 @@
 
 ---
 
-## Status & Decision
+## Current disposition — 2026-09-26 UTC
+
+**OPEN process follow-up; historical signup outage fixed.** The current workflow deliberately
+keeps structural PR plans separate from exact-SHA remote plans and owner-approved manual applies.
+`AGENTS.md` now requires explicit upfront pending-operation callouts, which mitigates missed handoffs.
+Automatic apply is **not** the required repair, and this audit does not authorize it.
+
+No automatic drift/reminder signal or explicit disposition of the remaining visibility gap was
+found. Retain that gap as open; an accepted manual-apply policy does not by itself demonstrate
+that merged infrastructure cannot be silently left unapplied. No current required-but-unapplied
+delta is asserted: that would need its own evidence and bounded apply/read-back decision.
+The August incident below was repaired by its manual apply and recorded login/signup checks.
+
+## Historical status & decision
 
 **Open, not yet fixed.** This is the process gap that turned a reviewed, merged Terraform
 fix into an hour-plus production outage of the entire signup/login feature. The immediate

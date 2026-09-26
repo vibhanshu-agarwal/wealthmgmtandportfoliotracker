@@ -1,7 +1,7 @@
 # E2E Remediation Round 3 — BFF Token Exchange + total-value Visibility
 
 **Date:** 2026-04-11
-**Status:** Superseded — no longer applicable (2026-08-13). Both the Better Auth login flow and the BFF token-exchange route this round targeted were removed when PR #85 moved identity into the `api-gateway`; see the "Superseded" section in this directory's `README.md`. Retained as a historical record.
+**Status:** Closed — superseded/no longer applicable (2026-08-13); revalidated 2026-09-26 UTC. Both the Better Auth login flow and the BFF token-exchange route this round targeted were removed when PR #85 moved identity into the `api-gateway`; see the "Superseded" section in this directory's `README.md`. Retained as a historical record, not a third open task.
 **Progress (historical):** 8/10 passing (up from 3/10 at start of session)
 
 ---

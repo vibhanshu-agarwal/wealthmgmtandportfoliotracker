@@ -8,6 +8,11 @@ observed during the Phase 2.1 responsive-shell proof (PR #297, merge commit `4f2
 
 ## Accepted, not fixed
 
+**Backlog audit (2026-09-26 UTC, `main@d515aa5b`):** retain OPEN. The current
+[demo preparation plan](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) still records
+this deferred debt. The desktop suite is not a 320px/375px reproduction or repair proof;
+this audit made no fresh browser measurement. Desktop-demo acceptance does not close it.
+
 These two defects are **not repaired**. The owner narrowed the demonstration contract to desktop
 viewports, which takes them off the demo-critical path. That changes their priority, not their
 status: the pages still overflow at these widths, and nothing in the product Semantic Versioning

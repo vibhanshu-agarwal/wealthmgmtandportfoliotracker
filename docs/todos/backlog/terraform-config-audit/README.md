@@ -32,6 +32,14 @@ that missed them globbed one directory too shallow.
 
 ## The actual gap
 
+**Audit (2026-09-26 UTC):** retain OPEN. Source pointers exist, but the complete authority/
+consumer audit is not recorded. A root-only reference scan found 53 AWS declarations (two without
+direct `var.*` references: `state_bucket_name`, `lock_table_name`) and 32 Azure declarations
+(all directly referenced). Those two AWS names are **candidates**, not proven dead configuration:
+backend/workflow/external consumers still require tracing. `app_auth_*` and the `Demo User`
+fallback remain in both workflows. The old counts below are August inventory, not today's baseline.
+No secrets, Terraform state or cloud resources were read.
+
 Non-secret Terraform config has no representation in `.env.secrets.example` and **cannot** have
 one: it is HCL, not environment variables, so there is no key to document.
 
