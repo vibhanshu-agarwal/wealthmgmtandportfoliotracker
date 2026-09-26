@@ -8,12 +8,15 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-26 UTC (local backlog audit; post-#320 suite/cleanup status
+**Latest reconciliation:** 2026-09-26 UTC (backlog audit; post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
-**Owner approval needed — push/PR and merge of the backlog audit:** this audit is a **local
-documentation candidate**, not yet independently reviewed or published. If approval is withheld,
-its changes stay local. The owner authorized #323's publication and green-CI merge, which completed
+**Owner approval required before push/PR and merge of the backlog audit:** each action needs
+explicit owner authorization; this document grants neither. An unmerged branch copy is a candidate;
+the audit is filed for the project freeze only when its carrying PR merges into `main`. The
+[backlog index](../todos/backlog/README.md) records the independent review and its bounded follow-up.
+If publication approval is withheld, the changes stay local. The owner authorized #323's
+publication and green-CI merge, which completed
 at `d515aa5b` on 2026-09-25; that publishes the accepted suite and cleanup status and does not
 authorize publication of this later audit. The post-#320 suite and three-user cleanup are complete
 under approvals R and C; the accepted verdict remains `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
@@ -130,7 +133,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, targeted #3–#6 checks ran, and the suite's one expected defect is accepted. Named inconclusive/unverified cases remain non-blocking for this demo, not PASS/fixed/closed | Retain the evidence limits below |
-| 5 — Documentation | **IN PROGRESS:** #323 published suite/cleanup status at `d515aa5b`. The backlog audit is prepared locally (30 directory items plus the dated TODO inventory), pending independent review/publication. Roadmap/runbooks remain open; the operator script remains a private reviewed draft | Review/publish the audit with owner approval, then reconcile the roadmap and runbooks; no media-brainstorming dependency |
+| 5 — Documentation | **IN PROGRESS:** #323 published suite/cleanup status at `d515aa5b`. The backlog audit covers 30 directory items plus the dated TODO inventory; its independent review is recorded in the index and its filing is determined by the carrying PR's merge into `main`. Roadmap/runbooks remain open; the operator script remains a private reviewed draft | If the audit's carrying PR is unmerged, complete review/publication with owner approval. Reconcile the roadmap and runbooks; no media-brainstorming dependency |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -647,8 +650,9 @@ published the targeted-check reconciliation at `b4e989b3`; #319 closed unmerged.
 script was rehearsed on the #320 build, then amended in wording and Codex-reviewed. The amendment
 changes no click, save or restore step, but was not re-rehearsed; it remains a private local draft.
 The post-#320 suite/cleanup reconciliation is published through #323 at `d515aa5b`.
-The later [backlog audit](../todos/backlog/README.md) is prepared locally and still needs
-independent review and owner-authorized publication. Roadmap/runbook reconciliation is not complete.
+The later [backlog audit](../todos/backlog/README.md) records its independent review. It is filed
+for the project freeze only when its carrying PR merges into `main`; before that it is a candidate
+requiring owner-authorized publication. Roadmap/runbook reconciliation is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a
 portfolio-demo gate.
@@ -675,11 +679,13 @@ wait for the brainstorming session, which applies only to the media package (Pha
 
 - [ ] Reconcile the [roadmap](../../ROADMAP.md).
 - [ ] Audit and reconcile the [operational runbooks](../runbooks/).
-- [x] Prepare the local [backlog audit](../todos/backlog/README.md) and dated TODO dispositions
+- [x] Prepare the [backlog audit](../todos/backlog/README.md) and dated TODO dispositions
   against `main@d515aa5b` (2026-09-26 UTC): 8 closed-fixed/completed, 2 closed-superseded and 20
   open directory items. Inline TODO counts are separate; no unverified case is counted as fixed.
-- [ ] Independently review and publish that audit with owner approval; only then is the backlog
-  reconciliation filed for the project freeze.
+
+**Backlog filing rule:** the index records the independent review and bounded wording follow-up.
+The backlog reconciliation is filed when the PR carrying it merges into `main`; push/PR and merge
+each require explicit owner approval. An unmerged candidate does not satisfy this freeze item.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 

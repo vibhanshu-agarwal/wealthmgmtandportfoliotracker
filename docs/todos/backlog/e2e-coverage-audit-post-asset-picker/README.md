@@ -10,9 +10,9 @@
 
 Asset Picker delivery and the accepted post-#320 multi-user suite are recorded in the
 [demo preparation plan](../../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). They are inputs
-to this follow-on audit, not its completion. Confirm any separate Profile-change scope when
-planning that work; the old blanket "not to be started yet" is not a current prohibition on
-the owner's documentation inventory.
+to this follow-on audit, not its completion. Before implementing the full cross-suite audit,
+reconcile any separate Profile-change scope. This documentation status review does not authorize
+live testing or code changes.
 
 The current Azure smoke still names a scale-from-zero check after setup prewarming;
 `synthetic-monitoring.yml` still sets Azure `SKIP_BACKEND_HEALTH_CHECK=true`, and the mocked

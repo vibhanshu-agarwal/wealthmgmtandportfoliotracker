@@ -1,12 +1,14 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Backlog process reconciliation — 2026-09-26 UTC (local candidate):** the
+**Backlog process reconciliation — 2026-09-26 UTC:** the
 [backlog index](../todos/backlog/README.md) records 8 fixed/completed closures, 2 superseded
 closures and 20 open items against `main@d515aa5b`. No Spec A/B1/B2 task completion box or
 historical proof is changed. Current runtime/demo status is governed by the
 [demo preparation dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md), including #323's published
 post-#320 suite/cleanup result. Older baseline paragraphs below retain their historical dates;
-they are not fresh serving-state assertions. Audit review/publication remain pending.
+they are not fresh serving-state assertions. The backlog index records the independent review;
+the audit is filed only when its carrying PR merges into `main`, with explicit owner approval
+required for push/PR and merge.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

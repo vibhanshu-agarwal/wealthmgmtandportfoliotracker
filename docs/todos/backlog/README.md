@@ -1,8 +1,15 @@
 # Backlog status index
 
 **Audited:** 2026-09-26 UTC against `main@d515aa5b295e1b780169358c712ae22ac71d8490`.
-**Publication:** local documentation candidate; independent review and owner approval for push/PR
-and merge remain required. No code fix, workflow dispatch, secret access or live operation occurred.
+**Publication rule:** this audit is filed for the project freeze only when the PR carrying it
+merges into `main`; an unmerged branch copy is a candidate. Push/PR and merge each require explicit
+owner approval. This document grants neither. No code fix, workflow dispatch, secret access or
+live operation occurred.
+
+**Independent review:** Claude reviewed audit commit `196c9d0d` on 2026-09-26 UTC and accepted its
+dispositions and evidence subject to one publication-wording fix, with two minor notes.
+The follow-up addresses that wording, clarifies existing closure authority and simplifies
+the E2E-audit scope note; Claude's review of `196c9d0d` does not itself review the follow-up commit.
 
 This is a restart inventory, not a new implementation plan. All 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain

@@ -64,7 +64,9 @@ health endpoints at HTTP `200`, unchanged gateway revision/ingress, the exact `S
 and the expected managed certificate. The execution record and scope are retained in the runbook.
 
 **G5 is closed** by the owner's 2026-09-02 decision. This backlog is now also closed under the
-owner's 2026-09-26 instruction to close fixed items. Both closures preserve the failed immediate
+owner's 2026-09-26 audit instruction: "Check which ones are fixed and mark them complete/closed."
+This supplies the previously reserved backlog-closure authority; it is separate from the earlier
+G5 decision and makes no new live-state claim. Both closures preserve the failed immediate
 health observation and later successful independent read-back; neither authorizes new cloud work.
 
 ## Authorized three-caller synthetic (executed live; docs source-only)
