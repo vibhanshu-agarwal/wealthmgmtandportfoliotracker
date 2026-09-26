@@ -9,8 +9,7 @@ its independently reviewed, owner-authorized carrying PR merges into `main`. It 
 access, implementation, deployment or cleanup authority.
 
 This v5 supersedes [v4](roadmap_enhancements_v4.md) for current roadmap interpretation, not for
-historical evidence. v1–v4 remain unchanged. The filename follows the owner's requested
-`roadmap_enahancements_v5.md`; use the links rather than assuming v4 is still the active queue.
+historical evidence. v1–v4 remain unchanged historical snapshots; v5 is the current planning queue.
 
 The project is a portfolio/demo application. Feature development is intended to pause for months
 or longer after the remaining freeze work. The three new owner requests below are deliberately

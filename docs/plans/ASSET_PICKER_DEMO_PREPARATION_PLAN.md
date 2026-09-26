@@ -16,7 +16,7 @@ published through #323 at `d515aa5b`; targeted #3–#6 status published through 
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
 The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
-[enhancements v5](../../roadmap_enahancements_v5.md) distinguish delivered capabilities, open
+[enhancements v5](../../roadmap_enhancements_v5.md) distinguish delivered capabilities, open
 residuals and the owner's three deferred requests. There is no feature implementation approval.
 The [backlog audit](../todos/backlog/README.md) is filed through #324 (`6f1e5700`), and the
 [runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Those approvals do not
@@ -658,7 +658,7 @@ The later [backlog audit](../todos/backlog/README.md) records its independent re
 for the project freeze through #324, merged at `6f1e5700`.
 The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d559478`) at source/
 retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
-[root README](../../README.md) and [enhancements v5](../../roadmap_enahancements_v5.md) are prepared
+[root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are prepared
 against that baseline. Their filing requires independent review and owner-authorized merge;
 an unmerged copy remains a candidate. The broader documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
@@ -686,7 +686,7 @@ work is to reconcile and audit them against the delivered state. It is factual c
 wait for the brainstorming session, which applies only to the media package (Phase 6).
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
-  and [enhancements v5](../../roadmap_enahancements_v5.md) against `main@5d559478`; preserve v1–v4
+  and [enhancements v5](../../roadmap_enhancements_v5.md) against `main@5d559478`; preserve v1–v4
   as history and record Sharpe/Sortino, richer FA/TA chat and exploratory charts as deferred,
   unscheduled requests. Preparation is not independent acceptance or filing.
 - [x] Prepare the [runbook reconciliation](../runbooks/README.md): inventory all 24 existing

@@ -29,7 +29,7 @@ pause starts after the remaining documentation, media and maintenance handoff wo
 - **Demo acceptance:** The post-#320 multi-user suite is accepted as `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS. Rehearsal, targeted checks and cleanup are separate records. Inconclusive/unverified checks and accepted defects remain qualified in the dashboard; this roadmap does not close them.
 - **Freeze documentation:** Backlog reconciliation filed through #324 (`6f1e5700`); runbook reconciliation filed through #325 (`5d559478`). This roadmap/README/v5 revision is filed only when its reviewed carrying PR merges. The media package and wider documentation/maintenance handoff remain separate.
 
-See [enhancements v5](roadmap_enahancements_v5.md) for resumable feature statuses. Versions
+See [enhancements v5](roadmap_enhancements_v5.md) for resumable feature statuses. Versions
 [v1](roadmap_enhancements_v1.md), [v2](roadmap_enhancements_v2.md),
 [v3](roadmap_enhancements_v3.md) and [v4](roadmap_enhancements_v4.md) remain historical snapshots;
 their old "not started" and "next" statements are not the current work queue.

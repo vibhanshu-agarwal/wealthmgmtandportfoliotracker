@@ -2,7 +2,7 @@
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and
-[enhancements v5](../../roadmap_enahancements_v5.md) are prepared against `main@5d559478`.
+[enhancements v5](../../roadmap_enhancements_v5.md) are prepared against `main@5d559478`.
 They distinguish delivered picker/analytics capabilities from open residuals and three deferred
 owner requests: per-user Sharpe/Sortino, richer FA/TA chat and additional charts. v1–v4 remain
 historical snapshots. No feature implementation, new operational proof or Spec A/B1/B2 task

@@ -24,17 +24,13 @@ service; displayed data is delayed/stored and the chat is not investment advice.
 
 🌐 **Live demo:** [vibhanshu-ai-portfolio.dev](https://vibhanshu-ai-portfolio.dev/) — running on Azure Container Apps + Azure Static Web Apps, with Azure OpenAI powering the AI Insights experience.
 
-**Reconciled:** 2026-09-26 UTC against source at `main@5d559478` and accepted demo evidence—not
-a fresh cloud, endpoint or billing check. The final-build desktop suite was accepted as
-`PASS_WITH_EXPECTED_DEFECTS`, not clean PASS; known limitations and evidence gaps remain in the
+**Demo validation:** the final-build desktop suite was accepted as
+`PASS_WITH_EXPECTED_DEFECTS`, not clean PASS. Known limitations and evidence gaps are documented in the
 [demo status dashboard](docs/plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
 
-**Navigation:** [ROADMAP](ROADMAP.md) · [enhancements v5](roadmap_enahancements_v5.md) ·
+**Navigation:** [ROADMAP](ROADMAP.md) · [enhancements v5](roadmap_enhancements_v5.md) ·
 [audited backlog](docs/todos/backlog/README.md) · [runbooks](docs/runbooks/README.md) ·
 [current operations/restart](docs/runbooks/CURRENT_OPERATIONS.md).
-
-This revision is a candidate until independently reviewed and merged under owner approval.
-Documentation grants no deployment, live testing, account or cleanup authority.
 
 ## Delivered Portfolio Experience
 
@@ -104,8 +100,7 @@ legacy AWS CDK under `infrastructure/lib/` is historical. Azure is the accepted 
 
 ### 🟢 Azure — Active (Live)
 
-This is the accepted serving baseline for [vibhanshu-ai-portfolio.dev](https://vibhanshu-ai-portfolio.dev/);
-this documentation update did not probe it.
+The [Azure demo](https://vibhanshu-ai-portfolio.dev/) uses the following deployment architecture.
 
 - **Compute:** All four Spring Boot services run as **Azure Container Apps (ACA)** in Central India, scale-to-zero (`min_replicas = 0`) to stay within budget. The internal services listen on port 8080; the `api-gateway` is the only externally-reachable app.
 - **Frontend:** The Next.js app is statically exported and hosted on **Azure Static Web Apps** (Free tier).
@@ -116,9 +111,9 @@ this documentation update did not probe it.
 
 ### 🟡 AWS — Soft-Disabled Standby
 
-The historical AWS path remains in source and was soft-disabled in favor of Azure. Its current
-resources, DNS, secrets, model access and compatibility were not re-inventoried here; it is not
-a current ready rollback target. Deploys enter through `deploy.yml`, not its reusable AWS child.
+The historical AWS path remains in source and was soft-disabled in favor of Azure. It is not
+a current ready rollback target: reactivation requires checking resources, DNS, secrets, model
+access and compatibility. Deploys enter through `deploy.yml`, not its reusable AWS child.
 
 - **Compute:** All four services packaged as container images and deployed as **AWS Lambda on arm64 / Graviton2**, fronted by the **AWS Lambda Web Adapter** so each Spring Boot app runs unmodified.
 - **Edge:** A single **Amazon CloudFront** distribution fronts the api-gateway Function URL and the static frontend bucket, injecting an `X-Origin-Verify` header validated by `CloudFrontOriginVerifyFilter`.
@@ -136,7 +131,7 @@ Local development and CI use a deterministic `MockAiInsightService` so no cloud 
 ## 🚀 Future Roadmap
 
 The picker/composition flow is delivered, not the next feature. [ROADMAP.md](ROADMAP.md) and
-[enhancements v5](roadmap_enahancements_v5.md) distinguish delivered milestones, open engineering
+[enhancements v5](roadmap_enhancements_v5.md) distinguish delivered milestones, open engineering
 residuals and unscheduled future ideas: per-user Sharpe/Sortino analytics, richer fundamental/
 technical-analysis chat, and more engaging charts. Settings, custom assets, provider diversification
 and AI-contract evolution remain future work. These entries are for a much later revisit, not a
@@ -165,7 +160,7 @@ This project heavily utilizes `spring-boot-docker-compose` and Testcontainers fo
 - Terraform only for separately authorized infrastructure work; follow the pinned workflow
   version and [runbooks](docs/runbooks/README.md), not a presumed checked-in executable.
 
-**Local stack example (not executed as part of this docs audit):** root Compose builds the four
+**Local stack example:** root Compose builds the four
 services and runs local PostgreSQL/MongoDB/Kafka/Redis. Use local-only configuration; do not load
 cloud profiles or production secrets into this example. Start the frontend in another terminal.
 
@@ -180,9 +175,9 @@ npm run dev
 ```
 
 The gateway is on `localhost:8080`; the frontend is on `localhost:3000`. Startup/seed prerequisites
-and internal-key-gated operations remain explicit in the local configuration. This is not a
-claim that local parity was rerun today. For an individual JVM use that service's `:bootRun` task
-and its local profile rather than assuming unqualified root `bootRun` starts the complete stack.
+and internal-key-gated operations remain explicit in the local configuration. For an individual
+JVM use that service's `:bootRun` task and its local profile rather than assuming unqualified root
+`bootRun` starts the complete stack.
 
 ## ✅ Testing
 
@@ -233,16 +228,35 @@ Remove-Item Env:SKIP_BACKEND_HEALTH_CHECK
 Remove-Item Env:SKIP_GOLDEN_STATE_SEEDING
 ```
 
-## 🎬 Demo / Evaluation Guide
-
-Use the [reviewed operations guidance](docs/runbooks/CURRENT_OPERATIONS.md) and privately retained
-operator/warm-up kit. Cold starts are expected; wait for `GO` and retain the bounded keep-alive
-throughout the demo. Account selection, exact baseline/restore and session exclusion rules apply.
-Do not reuse the deleted A4/post-#320 certification accounts.
-
 Do not run unrestricted `npm run test:e2e` as a harmless local smoke: the default configuration
 also includes live synthetic projects. Real-stack and live suites need their own configuration,
-account/seed protocol and approval. This docs reconciliation neither runs nor authorizes them.
+account/seed protocol and approval.
+
+### Resilience Test Scope
+
+Controlled local provider-failure fixtures test specific retry and fallback behavior; they do not
+establish end-to-end availability during an outage. Disconnecting a visitor's internet does not
+simulate a cloud dependency failure. The mocked-chaos 429 assertion redesign remains
+[open](docs/todos/backlog/mocked-chaos-429-batch-assertion-redesign/README.md).
+
+## 🎬 Demo / Evaluation Guide
+
+Open [the live demo](https://vibhanshu-ai-portfolio.dev/) and sign in using demo access provided
+by the project owner. The read-only showcase lets you explore without changing holdings.
+Backend services scale to zero between visits, so the first load may take longer while they wake.
+
+1. **Overview:** explore portfolio totals, allocations and the available summary metrics.
+2. **Portfolio:** inspect holdings, valuation, currency labels, freshness/coverage indicators and
+   the performance chart. On a write-enabled account, Edit Holdings provides catalog-backed
+   selection and quantity editing; the read-only showcase does not allow saves.
+3. **Market Data:** browse supported tickers and their stored prices. Try US equities, Indian
+   equities, crypto and currency pairs from the examples below.
+4. **AI Insights:** try a ticker question such as “How is AAPL doing?” and compare the answer with
+   the market card. Prices come from stored data; sentiment can be model-generated, cached or
+   rule-based, with source wording shown in the response.
+
+Demo operators: see [current operations](docs/runbooks/CURRENT_OPERATIONS.md) for warm-up,
+account safety and validation/restore procedures.
 
 ### Supported Baseline Tickers (Examples)
 
@@ -259,15 +273,3 @@ The picker uses the supported universe; analytics discloses missing/stale/partia
 includes natural-language name resolution, but the demo checks do not prove its broader reliability.
 Market-summary change over stored prices is not automatically a 24-hour return. Chat attribution,
 cache/fallback behavior and known limitations stay qualified in the status dashboard.
-
-### Resilience Evidence Is Scoped
-
-Local tests use controlled provider-failure fixtures; they are not proof that disconnecting an
-operator's internet leaves cloud LLMs or every dependency available. The old network-disconnection
-walkthrough is not a supported acceptance procedure. Future fault injection needs a bounded
-local fixture and specific assertions; the skipped mocked-chaos 429 coverage remains
-[open](docs/todos/backlog/mocked-chaos-429-batch-assertion-redesign/README.md).
-
-The project is not yet fully frozen: wider documentation/maintenance handoff and the
-LinkedIn/resume/PPT/video package remain. Brainstorm the media package with the owner and agents
-before drafting it; the roadmap requests do not start that work.
