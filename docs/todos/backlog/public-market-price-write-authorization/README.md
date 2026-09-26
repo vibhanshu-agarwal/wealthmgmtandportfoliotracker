@@ -1,16 +1,21 @@
 # Public market-price write lacks operator authorization
 
-> **Owner decision required:** approve a bounded code fix and, separately, its deployment/live
-> validation before either starts. This entry authorizes documentation only; withholding approval
-> leaves the defect OPEN. Documentation push/PR and merge also require explicit approval.
+> **Owner approval still required:** code push/PR, merge, deployment, live validation and any
+> historical-data read are separate decisions. The owner approved local preparation, now delivered
+> at `83607f5d`; that approval grants none of these operational actions. Documentation publication
+> also requires explicit approval. Until delivery and serving validation, this item remains OPEN.
 
 **Status:** OPEN — source-confirmed authorization defect; deployed exploitability not live-tested.
 **Priority:** High, urgent security treatment before project freeze; ahead of the advisor IDOR.
 **Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
-**Implementation:** not started. **Demo disposition:** owner decision pending, not waived by the
-previous `PASS_WITH_EXPECTED_DEFECTS` suite or its accepted limitations.
+**Implementation:** local removal at `83607f5d852f1a1c4d6dc8e055780fa0b3b33976`, independently
+reviewed ACCEPT WITH MINORS (0 Critical, 0 Important); not merged or deployed.
+**Demo disposition:** no waiver; the previous `PASS_WITH_EXPECTED_DEFECTS` suite did not cover it.
 
 ## Source finding and shared-data impact
+
+The following describes the audited `main@8aa4035b` baseline, not the unmerged fix. No fresh
+serving-revision read or live exploit was performed during this documentation reconciliation.
 
 [SecurityConfig](../../../../api-gateway/src/main/java/com/wealth/gateway/SecurityConfig.java)
 requires authentication, not an operator role, for `/api/market/**`.
@@ -41,7 +46,48 @@ safe merely because deployed exploitability is untested. The 08:00 UTC refresh o
 tickers for which provider data is returned and is not a reliable security recovery mechanism;
 history/reference data may also need reviewed reconciliation after any actual tampering.
 
-## Bounded future treatment and closure evidence
+## Local remediation and reviewed evidence — 2026-09-26 UTC
+
+Claude removed the public POST and the controller's service dependency, without an alias or
+replacement route. The service write API, scheduled refresh, local seeding and key-gated internal
+seed are unchanged. The commit changes one production file and three test files (+416/−17).
+
+`MarketPriceWriteRemovalIT` uses real Mongo/Kafka containers. It checks POST/PUT/PATCH/DELETE
+against three public paths and three forwarded-identity fixtures, unchanged raw price documents,
+and no Kafka event except a required observable control write. A handler-mapping assertion
+rejects public market write methods and method-less aliases. These direct-service identities
+are not authenticated signups; the gateway test separately characterizes authentication/forwarding.
+
+Codex inspected source and the recorded JUnit XML: before-fix 2/2 failed, after-fix 2/2 passed,
+and restored-endpoint 2/2 failed. Both failing runs record accepted writes, Mongo changes and extra
+Kafka events. The alias-mutant text is a reconstructed evidence summary, not raw JUnit output.
+Claude reports full market-data unit 120/120, integration 39/39 and gateway 3/3, none skipped;
+the independent reviewer reports rerunning the key tests. Codex did not rerun those Java suites.
+`MarketPriceWriteGatewayIntegrationTest` also adds one direct spoofed-header assertion; credit
+that partial coverage in the [separate backlog item](../gateway-user-header-spoofing-regression-proof/README.md).
+
+The local patch is acceptable on the inspected source/recorded evidence. This is not deployed
+closure. Existing B1 candidate-envelope pins include the old controller blob; reattestation is
+separate, not an automatic policy repin or B1 completion.
+
+## Remaining delivery and closure evidence
+
+Removal is the chosen local treatment; the earlier removal/key-gating options below are retained
+as design context, not a request to add another route. Obtain publication, merge and scoped
+market-data deployment approval, then bind validation to the serving candidate.
+
+For a proposed safe live probe, first prove the exact old/fixed status pair offline using a
+non-numeric JSON body. Use a valid ordinary writable account: anonymous/showcase 401/403 can
+occur on either version and do not distinguish the fix. Never use a numeric body, including a
+nonexistent ticker. Rate limits, timeouts and 5xx are inconclusive, not removal evidence.
+
+Removing the endpoint does not undo earlier writes. A separately approved read-only audit may
+triage off-catalog IDs and unexpected observation/reference values, with explicit legitimate
+seed/repair/catalog exceptions. It cannot prove past non-use or attribute an anomaly; normal
+catalog tickers can be tampered with and later overwritten. Mongo alone also cannot establish
+clean PostgreSQL history or Redis projections. No data read or repair is authorized here.
+
+## Original treatment requirements
 
 Prefer removing the unused public write, or move the required operator capability under a
 key-gated internal path. The old public path must be removed/denied, not left as an alias.
@@ -53,7 +99,8 @@ showcase callers cannot mutate prices through the public path. If an internal wr
 test missing/wrong keys and blank configured key fail closed, valid-key behavior uses isolated
 fixtures, and normal price reads/refresh still work. Verify neither Mongo nor Kafka changes on
 denial. Independently review the patch and obtain separate deployment/validation authority.
-These are proposed acceptance requirements, not code/tests delivered by this documentation entry.
+The local evidence above covers the selected removal path; deployment and live acceptance remain
+outstanding. This documentation entry itself implements no application code or live tests.
 
 See [market flow](../../../e2e-flows/market-data-service-e2e.md),
 [risk register](../../../architecture/RiskMitigationPlan.md) and

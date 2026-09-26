@@ -15,8 +15,11 @@ Its deployed Azure reachability is unverified; prior portfolio/session isolation
 not cover it. The architecture review also confirms an OPEN
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
-Price-write treatment has priority; owner disposition is pending, with no code/live operation
-authorized here. The test gap is not a proven current bypass.
+Price-write treatment has priority: owner-approved local removal at `83607f5d` is independently
+reviewed and acceptable on Codex's source/recorded-evidence review, but is not merged or deployed.
+Publication, merge, deployment, serving validation and historical-data reads each need approval.
+Its gateway test supplies one protected-route spoof proof; broader header coverage remains OPEN.
+No application code or live operation is authorized by this documentation update.
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and

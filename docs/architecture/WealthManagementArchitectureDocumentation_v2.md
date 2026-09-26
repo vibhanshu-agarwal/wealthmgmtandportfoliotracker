@@ -80,6 +80,12 @@ events, not just caller-owned data. This OPEN
 [price-write authorization defect](../todos/backlog/public-market-price-write-authorization/README.md)
 has source-wired Azure routing, but was not tested live. The frontend has no caller for it.
 
+That paragraph describes the audited `main@8aa4035b` baseline. Local commit `83607f5d` removes
+the route without an alias; it has independent review and source/recorded-evidence acceptance,
+but is not merged/deployed. The service write API and legitimate refresh/seed paths remain.
+Removal does not undo historical writes; a Mongo anomaly audit cannot prove past non-use or
+clean downstream history/caches. Delivery, serving validation and data reads need separate approval.
+
 The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
 portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.
 This is a source-confirmed [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md),

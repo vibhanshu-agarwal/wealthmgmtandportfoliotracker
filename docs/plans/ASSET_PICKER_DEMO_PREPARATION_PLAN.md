@@ -18,14 +18,18 @@ published through #323 at `d515aa5b`; targeted #3–#6 status published through 
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
 
-**Owner security decision required:** the architecture review also confirms an OPEN
+**Owner security delivery approvals required:** code push/PR, merge, market-data deployment,
+live validation and any historical-data read remain separate, unauthorized actions. The owner
+approved local price-write preparation; Claude delivered `83607f5d` and independent review
+accepted it with minors. Codex's source/evidence review accepts the local removal, not serving
+closure. Withholding delivery approval leaves the finding OPEN. The architecture review confirms an OPEN
 [public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md):
 ordinary self-signup accounts can change shared prices. Its Azure URL wiring exists, unlike the
-advisor URL gap; deployed exploitability was not tested. Authorizing a bounded local fix lets
-Claude prepare it for independent review; withholding leaves it OPEN. Deployment/live validation
-requires its own approval. Treat the price-write defect first. The additional
+advisor URL gap; deployed exploitability was not tested. The local removal is not merged or
+deployed, so no live remediation is claimed. Treat the price-write defect first. The additional
 [header-sanitization test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
-is OPEN regression-proof work, not a confirmed current bypass. No earlier demo waiver covers
+is OPEN regression-proof work, with one protected-route spoof assertion added locally by the
+price-fix tests; broader cases remain unproven. It is not a confirmed current bypass. No earlier demo waiver covers
 these findings. Current backlog totals are 33 directories: 8 fixed, 2 superseded, 23 OPEN.
 
 The four [service-flow guides](../e2e-flows/) describe current request, composition/reset,
@@ -162,8 +166,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. The new public price-write defect and advisor IDOR are OPEN, outside those checks, with owner disposition pending; header-sanitization regression proof is also OPEN | Decide the new security treatment separately, price-write first; do not inherit the earlier non-blocking decisions |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Flow/architecture corrections, README save correction and three new security/coverage entries await independent review/filing. The operator script remains a private reviewed draft | Review and file this documentation bundle under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal at `83607f5d` is locally reviewed, not merged/deployed; the item remains OPEN. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial local coverage | Deliver and validate the price fix under separate approvals; decide advisor treatment. Do not inherit earlier non-blocking decisions |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections through `c88f076c`; this later remediation-status follow-up awaits review, and the bundle is not filed. The operator script remains a private reviewed draft | Review the narrow follow-up and file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -692,7 +696,8 @@ The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d55
 retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
 [root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are filed
 through #326 (`8aa4035b`). The later flow/architecture corrections, showcase-save wording and
-three new security/coverage entries still require independent review and owner-authorized filing. The broader
+three new security/coverage entries were accepted through `c88f076c`; the later remediation-status
+follow-up still requires review and the bundle requires owner-authorized filing. The broader
 documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a

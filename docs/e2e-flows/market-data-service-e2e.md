@@ -43,6 +43,11 @@ this path. It alters shared data; no frontend page calls it. The OPEN
 the fully source-wired Azure route and the untested deployed exposure. Describing a manual write
 here is not a claim that an application approval gate protects it.
 
+**Local remediation, not the audited/serving baseline:** independently reviewed commit `83607f5d`
+removes that POST with no alias or replacement. Real Mongo/Kafka tests record refusal with unchanged
+data/events, with a required control write and failing restored-endpoint mutant. It is not merged
+or deployed; see the finding for evidence limits and the remaining delivery/validation approvals.
+
 [MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)
 includes nullable `currentPrice`, `quoteCurrency`, observation/reference timestamps
 and nullable change fields. Missing requested tickers have null data fields, not a fabricated zero

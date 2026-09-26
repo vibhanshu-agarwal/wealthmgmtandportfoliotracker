@@ -24,6 +24,16 @@ name is not itself a test against today's deployed Azure revisions.
 
 ## 2. Source-linked cases and limits
 
+**Separate unmerged candidate evidence:** price-removal commit `83607f5d` adds
+`MarketPriceWriteRemovalIT` (real Mongo/Kafka, required control write, unchanged documents/topic,
+read-only handler mappings) and `MarketPriceWriteGatewayIntegrationTest` (production route list,
+auth/read-only refusal and exact forwarded subject despite a spoofed header). The recorded
+service XML is red before removal, green after and red with the restored endpoint. Codex inspected
+source/XML, not a new execution; full suite counts and independent reruns are reported in the
+[price-write item](../todos/backlog/public-market-price-write-authorization/README.md).
+These tests are not yet on audited main, do not prove live remediation, and cover only one
+protected spoofed-header case, not the entire [header-proof backlog](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
+
 | Boundary / case | Representative existing source | Correct assertion and limit |
 |---|---|---|
 | Signup/login and auth errors | [AuthIntegrationTest](../../api-gateway/src/test/java/com/wealth/gateway/auth/AuthIntegrationTest.java), [AuthControllerUniformErrorTest](../../api-gateway/src/test/java/com/wealth/gateway/AuthControllerUniformErrorTest.java) | Gateway-owned credentials, uniform rejected login and empty-portfolio signup; local tests are not a new real account lifecycle run. |
