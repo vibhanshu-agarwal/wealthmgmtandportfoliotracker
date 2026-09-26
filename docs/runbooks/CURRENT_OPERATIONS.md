@@ -55,8 +55,9 @@ model and cache an answer. These sessions are not "read-only" merely because hol
 There is no arbitrary calendar deadline or fixed appointment imposed by this guide. For tests
 requiring stable prices/FX, use a bounded window without overlapping data refresh. Terraform
 source schedules the market Job at `0 8 * * *` (08:00 UTC); the portfolio FX cache eviction
-uses `fx.refresh-cron` with a 06:00 default and no explicit annotation timezone. Confirm runtime
-timezone and whether the service is running before treating it as an observed 06:00 UTC event.
+uses `fx.refresh-cron`, explicitly set to 06:00 by the Azure profile, with no explicit annotation
+timezone. Confirm runtime timezone and whether the service is running before treating it as an
+observed 06:00 UTC event.
 Neither schedule is proof that today's refresh succeeded. Starting a Job is an operation separate
 from Terraform provisioning and requires its own approval.
 
@@ -69,7 +70,7 @@ Source contracts: [deployment dispatcher](../../.github/workflows/deploy.yml),
 
 | Operation | Required preparation and boundary |
 |---|---|
-| Application deploy | Dispatch `deploy.yml` on `main` with the reviewed full `expected_main_sha` and an explicit mode. `scoped` needs the selected services; `digest` currently accepts the portfolio repository only; `frontend-only` accepts no services/digest. The dispatcher has a production approval gate. The Azure deploy files are reusable workflows, not direct dispatch entry points. |
+| Application deploy | Dispatch `deploy.yml` on `main` with the reviewed full `expected_main_sha` and an explicit mode. `full` accepts no services/digest; `scoped` needs the selected services; `digest` currently accepts the portfolio repository only; `frontend-only` accepts no services/digest. The dispatcher has a production approval gate. The Azure deploy files are reusable workflows, not direct dispatch entry points. |
 | Structural Terraform plan | PR-triggered or `action=plan`; uses a local-backend override, still authenticates to Azure, and cannot preview the actual live-state delta. |
 | Live-state Terraform preview | Separately authorized `action=remote-plan` on `main`; exact reviewed SHA, four-service `deployed_image_tags_json`, selected profile and any required portfolio digest. It reads the real backend; it does not apply. |
 | Terraform apply | Separate authorized `action=apply` on `main`, same identity discipline and production Environment gate. It regenerates a plan and runs guards; it does not consume the earlier preview artifact. A merge alone does not apply infrastructure. |

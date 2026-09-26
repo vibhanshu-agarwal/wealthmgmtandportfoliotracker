@@ -5,8 +5,8 @@ neither publication nor operational authority. An unmerged branch copy is a cand
 reconciliation is filed for the project freeze when its reviewed carrying PR merges into `main`.
 
 **Reconciled source:** 2026-09-26 UTC, application/workflow baseline `main@d515aa5b`, plus the
-accepted backlog audit through `602f6bca` (PR #324). That audit's publication depends on its own
-merge state. No Azure, database, Kafka, secret-store, endpoint or billing read was performed.
+accepted backlog audit through `602f6bca`, filed by PR #324's merge at `6f1e5700`.
+No Azure, database, Kafka, secret-store, endpoint or billing read was performed.
 
 Start with [current operations](CURRENT_OPERATIONS.md). The
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) is the owner's status

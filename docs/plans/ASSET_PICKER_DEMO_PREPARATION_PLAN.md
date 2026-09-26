@@ -16,13 +16,14 @@ explicit owner authorization; this document grants neither. An unmerged branch c
 the reconciliation is filed for the project freeze only when its reviewed carrying PR merges
 into `main`. The [runbook index](../runbooks/README.md) records scope and evidence limits.
 The separate accepted [backlog audit](../todos/backlog/README.md) was published as
-[PR #324](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/324); its filing
-depends on that PR's merge state, and its push/PR approval does not authorize this later bundle.
+[PR #324](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/324), merged at
+`6f1e5700`; it is filed, and its publication approval does not authorize this later bundle.
 If publication approval is withheld, this bundle stays local. The owner authorized #323's
 publication and green-CI merge, which completed
 at `d515aa5b` on 2026-09-25; that publishes the accepted suite and cleanup status and does not
-authorize publication of this later audit. The post-#320 suite and three-user cleanup are complete
-under approvals R and C; the accepted verdict remains `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
+authorize publication of the separate backlog audit or this runbook reconciliation. The post-#320
+suite and three-user cleanup are complete under approvals R and C; the accepted verdict remains
+`PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
 No new suite, cleanup, deployment, cloud read or Production action is authorized here. #322 merged
 the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
 merged at `c4e58f1c`, and [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
@@ -136,7 +137,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, targeted #3–#6 checks ran, and the suite's one expected defect is accepted. Named inconclusive/unverified cases remain non-blocking for this demo, not PASS/fixed/closed | Retain the evidence limits below |
-| 5 — Documentation | **IN PROGRESS:** #323 published suite/cleanup status at `d515aa5b`. The accepted backlog audit is published in #324, with filing determined by its merge state. Runbook reconciliation covers all 24 existing files: 2 reusable procedures corrected, 3 legacy helpers and 19 historical records classified; new inventory/current-operations guidance prepared. Roadmap remains open; the operator script remains a private reviewed draft | Review/file the runbook reconciliation through its own owner-approved PR; if #324 is unmerged, its filing remains separate. Reconcile the roadmap; no media-brainstorming dependency |
+| 5 — Documentation | **IN PROGRESS:** #323 published suite/cleanup status at `d515aa5b`. The accepted backlog audit is filed through #324, merged at `6f1e5700`. Runbook reconciliation covers all 24 existing files: 2 reusable procedures corrected, 3 legacy helpers and 19 historical records classified; new inventory/current-operations guidance prepared. Roadmap remains open; the operator script remains a private reviewed draft | Review/file the runbook reconciliation through its own owner-approved PR. Reconcile the roadmap; no media-brainstorming dependency |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -653,10 +654,9 @@ published the targeted-check reconciliation at `b4e989b3`; #319 closed unmerged.
 script was rehearsed on the #320 build, then amended in wording and Codex-reviewed. The amendment
 changes no click, save or restore step, but was not re-rehearsed; it remains a private local draft.
 The post-#320 suite/cleanup reconciliation is published through #323 at `d515aa5b`.
-The later [backlog audit](../todos/backlog/README.md) records its independent review. It is filed
-for the project freeze only when its carrying PR merges into `main`; before that it is a candidate
-requiring owner-authorized publication. That audit was published as #324; its merge state governs
-filing. The [runbook reconciliation](../runbooks/README.md) is prepared against source and retained
+The later [backlog audit](../todos/backlog/README.md) records its independent review and is filed
+for the project freeze through #324, merged at `6f1e5700`.
+The [runbook reconciliation](../runbooks/README.md) is prepared against source and retained
 records, not a fresh operational verification. It counts as filed only when its independently
 reviewed, owner-authorized carrying PR merges into `main`; an unmerged copy remains a candidate.
 Roadmap reconciliation is not complete.
