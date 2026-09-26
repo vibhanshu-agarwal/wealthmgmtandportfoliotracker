@@ -73,19 +73,22 @@ origin verification or a prod route rate limiter. The downstream shared internal
 application authorization gate (wrong/missing supplied key 403, blank configured key 503), not
 private ingress or layered user authorization. CORS does not stop non-browser callers.
 
-The public `POST /api/market/prices/{ticker}` sits outside that key filter. Normal `ro=false`
-accounts, including public signups, pass the gateway's authentication/read-only checks; no
-operator role/key check exists in its controller/service. It changes shared prices and submits
-events, not just caller-owned data. This OPEN
+At audited baseline `8aa4035b`, public `POST /api/market/prices/{ticker}` sat outside that key filter. Normal `ro=false`
+accounts, including public signups, passed the gateway's authentication/read-only checks; no
+operator role/key check existed in its controller/service. It changed shared prices and submitted
+events, not just caller-owned data. This subsequently fixed
 [price-write authorization defect](../todos/backlog/public-market-price-write-authorization/README.md)
 has source-wired Azure routing, but was not tested live. The frontend has no caller for it.
 
 That paragraph describes the audited `main@8aa4035b` baseline. Reviewed commit `83607f5d` removes
 the route without an alias; it has independent review and source/recorded-evidence acceptance,
-and merged through #327 (`9c733f6d`), but is not deployed/live-validated. The service write API
+and merged through #327 (`9c733f6d`). Scoped deploy 36259687567 and one owner-run Gate D
+`REMOVED`, exit 0, with AAPL reads OK close that public-route defect on 2026-09-26 UTC. The service write API
 and legitimate refresh/seed paths remain.
 Removal does not undo historical writes; a Mongo anomaly audit cannot prove past non-use or
-clean downstream history/caches. Delivery, serving validation and data reads need separate approval.
+clean downstream history/caches. Optional historical audit Gate E remains open with separate
+design/approval required. Closure uses saved deploy logs and the terminal-output transcription,
+not a new Codex live or cloud read; no broader security acceptance is implied.
 
 The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
 portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.

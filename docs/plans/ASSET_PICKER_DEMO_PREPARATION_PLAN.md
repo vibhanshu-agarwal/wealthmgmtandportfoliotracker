@@ -18,22 +18,30 @@ published through #323 at `d515aa5b`; targeted #3–#6 status published through 
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
 
-**Owner operational approvals required:** market-data deployment (Gate C), live validation
-(Gate D) and any historical-data read (Gate E) remain separate, unauthorized actions. Price-write
+**Operational status:** owner-authorized market-data deployment (Gate C) and one live probe
+(Gate D) are complete. Optional historical-data audit Gate E remains open and needs separate
+design/approval; no further live operation or data repair is authorized here. Price-write
 removal `83607f5d` is published and merged through [#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327)
 at `9c733f6df966c1acff80cdc4b9ddf35285512398` (2026-09-26 17:07:50 UTC). Codex verified the merge
-tree equals the reviewed head and the heavy PR CI jobs passed. Post-merge CI was still running
-at reconciliation; main must be green before dispatch. No deployment or serving closure is claimed.
-The architecture review confirms an OPEN
-[public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md):
-ordinary self-signup accounts can change shared prices. Its Azure URL wiring exists, unlike the
-advisor URL gap; deployed exploitability was not tested. The removal is merged, not deployed;
-the latest GitHub Deploy record remains the earlier `db51cf5b` deployment. This is a GitHub-only
-check, not an Azure revision read or proof against out-of-band changes. Treat the price-write defect first. The additional
+tree equals the reviewed head and the heavy PR CI jobs passed. Gate C's saved record reports main
+CI green before dispatch. Scoped deploy
+[36259687567](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36259687567)
+succeeded: market-data revision `--0000082`, image `sha256:48a649c0…9881`, 100% traffic; refresh Job
+on the same digest, other apps unchanged within the snapshot comparison's fields. The base image
+tag resolved a newer digest, as recorded. At approximately 18:13–18:15 UTC, one owner-run Gate D
+probe returned `REMOVED`, exit 0: one non-numeric POST returned 404 with market-data's error body,
+and the AAPL read returned 200 with one finite, positive price. The
+[public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+is **CLOSED — fixed, deployed and live-validated**, not waived. Codex checked the saved deploy logs
+and terminal-output transcription; no new Azure/database read or live probe was made. Runtime
+behavior comes from Gate D; revision/digest attribution comes from Gate C artifacts, not the probe.
+This does not prove past non-use, clean historical prices or unchanged out-of-band configuration.
+The additional
 [header-sanitization test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
 is OPEN regression-proof work, with one protected-route spoof assertion merged through #327 in the
-price-fix tests; broader cases remain unproven. It is not a confirmed current bypass. No earlier demo waiver covers
-these findings. Current backlog totals are 33 directories: 8 fixed, 2 superseded, 23 OPEN.
+price-fix tests; broader cases remain unproven. It is not a confirmed current bypass. No earlier
+demo waiver covers the still-open advisor/header findings. Current backlog totals are 33 directories:
+9 fixed, 2 superseded, 22 OPEN.
 
 The local deployment/probe packet is accepted by Codex: packet SHA-256
 `0602badfbec143587c9052d7960f4e7a1742d8ab0a924d7916c854c200db13d9`, probe SHA-256
@@ -41,7 +49,12 @@ The local deployment/probe packet is accepted by Codex: packet SHA-256
 Codex reran 19 offline tests and verified all 13 manifest entries. The packet stops on the newest
 started market-data attempt unless fully successful, retains separate before/after evidence,
 and uses a redirect-free non-numeric one-shot probe with explicit writable-account and finite-price
-guards. This acceptance authorizes no workflow dispatch, live login/probe or data audit.
+guards. Codex subsequently reran 36 launcher/probe tests; launcher SHA-256
+`f909e06fc731006f2b05850daa5f447d888db0ab3a43b2ba7b9a34bfa29bd90d` pins the unchanged probe.
+After the separately approved run, all 21 manifest entries verify; manifest SHA-256
+`a634127ff729d07fd7d0cb6ca671605764db2edb61fb9fb31d4cad98d8982d0d`.
+Closure evidence and its limits are recorded in the linked backlog item. This update authorizes
+no additional workflow dispatch, live login/probe or data audit.
 
 The four [service-flow guides](../e2e-flows/) describe current request, composition/reset,
 stored-price refresh/projection and chat-attribution paths. This is source reconciliation,
@@ -49,7 +62,8 @@ not a new live test or closure of the wider documentation pass.
 The [architecture index](../architecture/README.md) identifies 6 corrected current references,
 8 historical records with new classification banners, and 1 formerly empty historical
 placeholder. Azure/Java 21, data/AI boundaries and the logical diagram are corrected; no live
-inventory, new application proof or accepted defect closure is claimed.
+inventory or new application proof was produced by the audit; the separately recorded price-write
+closure above is based on the later owner-authorized deploy/probe, not documentation review alone.
 The follow-up corrects the showcase-save wording and service failure/profile/security descriptions.
 It adds an OPEN [portfolio advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md):
 source confirms missing subject binding; Azure reachability is unverified because the source
@@ -177,8 +191,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is merged through #327 (`9c733f6d`), not deployed; the item remains OPEN. The bounded packet is accepted locally. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial merged coverage | Obtain Gate C/D approvals, deploy and validate the price fix; decide advisor treatment. Do not inherit earlier non-blocking decisions |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status through `0632dd07`; this later merge-status follow-up awaits review, and the docs bundle is not filed. The operator script remains a private reviewed draft | Review the narrow status follow-up and file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial merged coverage | Decide advisor treatment; independently review/file this closure. Any Gate E audit needs separate design/approval. Do not inherit earlier non-blocking decisions |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status through `0632dd07`; this later merge/deploy/probe-status follow-up awaits review, and the docs bundle is not filed. The operator script remains a private reviewed draft | Review the narrow status follow-up and file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -189,11 +203,12 @@ inconclusive or unverified observations into passes or fixes.
 at `d515aa5b` on 2026-09-25. At that acceptance, no technical or status-publication fast-track
 gate remained open within the then-accepted desktop-demo scope. This does not complete the separately required freeze
 documentation or media package, or close accepted/unverified defects.
-That conclusion concerns the accepted evidence scope: the newly source-confirmed public price-write
-defect and advisor IDOR were not exercised by those checks and have **no owner disposition yet**.
-Do not extend prior non-blocking decisions or technical acceptance to either endpoint. Live
-exploitability remains untested; decide their security treatment before expanding the readiness
-claim. The header-sanitization regression-proof gap is separate OPEN test work, not a current
+That conclusion concerns the accepted evidence scope: the later price-write defect and advisor
+IDOR were not exercised by those checks. Price-write removal now has its own merge/deploy/probe
+closure, not an inherited suite PASS. The advisor IDOR remains **OPEN with owner disposition
+pending**, and its live exploitability is untested; decide its treatment before expanding the
+readiness claim. Historical-price audit Gate E is optional/open and certifies no past-data integrity.
+The header-sanitization regression-proof gap is separate OPEN test work, not a current
 bypass proved by this source audit.
 
 The operator-script review, final-build rehearsal, targeted #3–#6 demo dispositions, full suite
@@ -708,7 +723,7 @@ retained-record scope, not fresh operational verification. The [roadmap](../../R
 [root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are filed
 through #326 (`8aa4035b`). The later flow/architecture corrections, showcase-save wording and
 three new security/coverage entries and local-remediation status were accepted through `0632dd07`;
-the later #327 merge-status follow-up still requires review and the docs bundle requires
+the later #327 merge/deploy/probe-status follow-up still requires review and the docs bundle requires
 owner-authorized filing. The broader
 documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow

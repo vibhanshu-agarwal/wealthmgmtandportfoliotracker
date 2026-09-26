@@ -25,13 +25,16 @@ The six reusable references above were corrected in this audit. Detailed source 
 the four [service E2E guides](../e2e-flows/); their companion reconciliation is also a local
 candidate until reviewed and merged. Operator instructions are in
 [Current operations](../runbooks/CURRENT_OPERATIONS.md).
-The review follow-up also records the OPEN, source-confirmed
-[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) and
-[public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md), plus
+The review follow-up records the OPEN, source-confirmed
+[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md), the subsequently
+fixed [public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md), plus
 the [header-spoofing test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
 It distinguishes untested live reachability from source defects, corrects profile/failure/test
 claims and adds the manual repair Job/reset token. Independent follow-up review and filing follow
 the publication rule above; prior runtime acceptance does not cover these new findings.
+The price-write item is now CLOSED after #327, scoped deploy 36259687567 and one owner-run
+Gate D `REMOVED`, exit 0; its separately recorded closure certifies no past-data cleanliness.
+Optional Gate E and the advisor/header-proof work remain open.
 
 ## Historical records — do not execute as current plans
 

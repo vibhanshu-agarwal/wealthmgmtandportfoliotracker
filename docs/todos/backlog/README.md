@@ -18,11 +18,13 @@ adds three OPEN findings: [advisor authorization](portfolio-advisor-cross-user-a
 [header-spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md).
 The original 30-item audit is filed through #324 (`6f1e5700`); its independent acceptance does not
 cover this later addition. Claude accepted the documentation corrections through `c88f076c`;
-Claude also accepted local-remediation status at `0632dd07`; the later merge-status follow-up
-requires its own review/publication under the rule above. Price-write removal at `83607f5d` is
-merged through #327 (`9c733f6d`), not deployed/live-validated; its gateway test partially covers
-the separate header-proof item. Neither item is closed.
-No original disposition changes. Current totals are 33 directories: 8 fixed, 2 superseded, 23 open.
+Claude also accepted local-remediation status at `0632dd07`; the later merge/deploy/probe-status
+follow-up requires its own review/publication under the rule above.
+Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
+36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
+the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional
+and open, with separate design/approval required; closure certifies no past-data cleanliness.
+No original disposition changes. Current totals are 33 directories: 9 fixed, 2 superseded, 22 open.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
@@ -35,9 +37,9 @@ additional implementations to perform.
 
 | Status | Count | Meaning |
 |---|---:|---|
-| CLOSED — fixed/completed | 8 | The original work has delivered source or accepted historical completion evidence; closure is limited to that item's scope/cut. |
+| CLOSED — fixed/completed | 9 | Delivered source or accepted completion evidence; includes the separately deployed/live-validated price-write removal. Closure is limited to each item's scope/cut. |
 | CLOSED — superseded | 2 | The architecture/premise was retired. Do not implement the old fix plan. |
-| OPEN | 23 | The original 20 residual items plus two source-confirmed authorization defects and one security regression-proof gap. Includes deferred, parked, mitigated and partially delivered items. |
+| OPEN | 22 | The original 20 residual items plus the advisor authorization defect and header-proof gap. Includes deferred, parked, mitigated and partially delivered items. |
 | **Total directories** | **33** | Original audit of 30 plus three source-review additions. ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
 
 Non-blocking, accepted-for-demo, not observed, and unverified are **not** synonyms for fixed.
@@ -56,6 +58,7 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Total-value hydration](total-value-e2e-hydration/README.md) | `c6fd8408` repaired missing standalone assets; frontend subsequently migrated to static export. Not whole-valuation verification. |
 | [Total-value skeleton E2E](total-value-skeleton-e2e/README.md) | Same fixing commit and historical incident as hydration entry. Do not reimplement the obsolete NextAuth hypotheses. |
 | [Overview / Market Data page implementation](ui-polish-overview-market-data/README.md) | `71273107`, completed ledger and current components/tests. Original placeholder pages are replaced; later currency/overflow gaps remain separate. |
+| [Public market-price write authorization](public-market-price-write-authorization/README.md) | #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK. Historical-price integrity is not certified; optional Gate E needs separate design/approval. |
 
 ## Closed — superseded/no longer relevant
 
@@ -83,7 +86,6 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
 | [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **Source-confirmed IDOR; owner disposition pending.** Path-selected user ID is forwarded without subject comparison. Azure URL/reachability is unverified; missing source wiring is not an authorization control. |
-| [Public market-price write authorization](public-market-price-write-authorization/README.md) | **OPEN; reviewed removal merged through #327 (`9c733f6d`), not deployed/live-validated.** Deployment and serving validation remain outstanding; the bounded packet is accepted locally. Historical-data anomaly triage requires separate approval and cannot prove past non-use. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |

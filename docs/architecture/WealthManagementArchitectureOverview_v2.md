@@ -60,13 +60,15 @@ Browser HTTP calls go through the gateway. Signup creates credentials and an emp
 Holdings replacement is a complete desired-set transaction with an expected version; conflicts
 are rejected rather than silently retried. Market reads serve MongoDB data, not live Yahoo calls.
 
-The refresh runner and the current manual market-write path submit `PriceUpdatedEvent` on
+The refresh runner and the audited-baseline manual market-write path submit `PriceUpdatedEvent` on
 `market-prices`, keyed by ticker. Portfolio projects prices/history to PostgreSQL; insight
 maintains Redis observations and summaries. These stores are eventually consistent. There is
 no established MongoDB-to-Kafka transactional outbox or cross-store exactly-once guarantee.
-The public price POST lacks operator authorization: ordinary self-signup accounts can change
-shared prices. This is an OPEN [security defect](../todos/backlog/public-market-price-write-authorization/README.md),
-not a write restricted by an approval gate; deployed exploitability was not tested live.
+At `8aa4035b`, the public price POST lacked operator authorization: ordinary self-signup accounts
+could change shared prices. That [security defect](../todos/backlog/public-market-price-write-authorization/README.md)
+is CLOSED after #327, scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with
+AAPL reads OK. The public route is removed, not newly role/key-gated; historical exploitability
+was not tested and optional historical-price audit Gate E remains open.
 
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model

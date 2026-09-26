@@ -1,5 +1,5 @@
 @startuml
-title Portfolio Demo - Logical Architecture (source audit 2026-09-26, main@8aa4035b)
+title Portfolio Demo - Logical Architecture (8aa4035b audit + #327 removal/deploy/probe closure, 2026-09-26)
 skinparam componentStyle rectangle
 
 actor "Demo user" as User
@@ -31,8 +31,8 @@ Gateway --> Market : /api/market/**
 Gateway --> Insight : /api/insights/**, /api/chat/**
 Portfolio --> Postgres : transactional holdings / analytics
 Portfolio --> FX : available FX conversion
-Market --> Mongo : stored reads / public write lacks operator gate
-Market --> Kafka : manual-write observations
+Market --> Mongo : stored reads / key-gated internal seed
+Market --> Kafka : internal-seed observations (public POST removed)
 Refresh --> Yahoo : scheduled price fetch
 Refresh --> Mongo : persist observations
 Refresh --> Kafka : keyed price publication
@@ -64,7 +64,8 @@ end note
 note bottom of Gateway
   Internal seed/reset routes are public, no JWT/origin/route limiter.
   Downstream shared internal key gates those operations.
-  Public market POST permits ordinary signup accounts (OPEN defect).
+  Public market POST removed in #327; scoped deploy and Gate D confirmed removal.
+  Historical-price integrity is not certified; optional audit remains open.
   Manual demo-reset response carries an opaque replica token, not that key.
 end note
 note bottom of Frontend

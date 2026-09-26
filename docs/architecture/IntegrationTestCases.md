@@ -31,8 +31,9 @@ auth/read-only refusal and exact forwarded subject despite a spoofed header). Th
 service XML is red before removal, green after and red with the restored endpoint. Codex inspected
 source/XML, not a new execution; full suite counts and independent reruns are reported in the
 [price-write item](../todos/backlog/public-market-price-write-authorization/README.md).
-These tests are on main after the `8aa4035b` audit baseline. Heavy PR CI passed, but they do not
-prove live remediation and cover only one
+These tests are on main after the `8aa4035b` audit baseline. Heavy PR CI passed, but the tests alone
+do not prove live remediation. The separate scoped deploy 36259687567 and one owner-run Gate D
+`REMOVED`, exit 0, close the public write defect within the linked evidence limits. Tests cover only one
 protected spoofed-header case, not the entire [header-proof backlog](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
 
 | Boundary / case | Representative existing source | Correct assertion and limit |
@@ -70,10 +71,11 @@ running the default Playwright config.
 The accepted live limitations remain those in the dashboard. Source tests alone do not close
 unknown-currency rendering, header-strip non-USD coverage, analytics-unavailable fallback,
 FX-pair semantics or model-text reliability. The source-confirmed
-[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) and
-[public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md)
-are OPEN defects with owner disposition pending, not hypothetical improvements or covered by
-the prior isolation suite. The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
+[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md)
+is OPEN with owner disposition pending, not a hypothetical improvement or covered by the prior
+isolation suite. The [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+is separately CLOSED after merge/deploy/probe, not through that isolation suite or a historical-data audit.
+Optional Gate E remains open. The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
 is OPEN without a confirmed current bypass. Insight cache atomicity, outbox delivery, event-ID
 dedup, sustained load/failover and cross-cloud recovery remain separate proof/design work.
 This inventory authorizes no new tests, changes or live run and reopens no original closed item.

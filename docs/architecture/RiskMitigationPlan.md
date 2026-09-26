@@ -2,12 +2,13 @@
 
 **Reconciled:** 2026-09-26 UTC against `main@8aa4035b`. This replaces stale April controls
 and fixed 30/60/90-day promises with source-supported controls and unscheduled residual work.
-It is not a fresh cloud/security audit, independent runtime proof or new defect disposition.
+It is not a fresh cloud/security audit or independent runtime proof. The later price-write closure
+below reconciles separately recorded owner-authorized deploy/probe evidence.
 
 The [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains
 `PASS_WITH_EXPECTED_DEFECTS` and owner-accepted limitations. The
 [backlog index](../todos/backlog/README.md) governs open/fixed/superseded task status;
-this register does not change those dispositions or create a new required demo gate.
+this register mirrors those dispositions and creates no new required demo gate.
 
 ## 1. Controls actually present
 
@@ -35,7 +36,7 @@ and the [service flows](../e2e-flows/).
 | Reordered/duplicate observations | Portfolio newer-time/tuple/history guards exist; the old "not sequence-aware" claim was wrong | Insight's multi-command Redis write does not establish atomic monotonic latest. Evaluate a bounded structural fix separately. |
 | Persist/publish divergence | Mongo save and Kafka publication are distinct; keyed producers and scoped retries exist | No transactional outbox across this boundary. Review recovery/reconciliation before asserting complete propagation or replaying data. |
 | Authorization depth | Protected user routes require gateway JWT; direct internal routes use the separate shared-key-only boundary below | The path-ID advisor has a source-confirmed [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md), OPEN with owner disposition pending. Azure source omits its portfolio URL; live reachability is unverified and missing wiring is not a security control. No exploit/live probe or fix was performed. |
-| Shared market-price mutation | Audited `8aa4035b` permits public POST for ordinary logins; reviewed removal merged through #327 (`9c733f6d`), not deployed/live-validated | **OPEN [operator-authorization defect](../todos/backlog/public-market-price-write-authorization/README.md).** Obtain deployment/serving-validation approval; the bounded packet is accepted locally. No live exploit was tested; removal does not undo past writes, and anomaly triage cannot prove historical non-use or downstream cleanliness. |
+| Shared market-price mutation | At `8aa4035b`, ordinary logins could POST shared prices. #327 (`9c733f6d`) removed the route; scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK confirm removal | **CLOSED [operator-authorization defect](../todos/backlog/public-market-price-write-authorization/README.md), within route-removal scope.** Saved deploy logs and terminal-output transcription, not a new Codex live/cloud read. Optional Gate E historical audit stays open and needs separate design/approval; removal does not undo past writes or prove downstream cleanliness. |
 | Public internal routes | Downstream shared-key filters reject missing/wrong keys (403) or blank configured key (503) | `/api/internal/**` seed/reset routes are publicly forwarded without JWT, origin verification or prod route rate limiting. Internal ACA ingress does not hide them from the public gateway. Assess key exposure/rotation, least privilege and abuse controls separately. |
 | User-header regression assurance | Source strips spoofed identity and injects JWT subject; #327 merges a direct protected market-route spoof assertion | Older named spoofing integration cases remain status-only. [Broader regression proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md) is OPEN for duplicate headers, permit-all paths and general mutation proof; no current bypass is asserted. |
 | Refresh partial/failure outcomes | Provider retries and awaited scheduled Kafka sends exist | Any unrecovered Yahoo batch failure discards accumulated results; provider failure is caught and can exit 0 with no writes. Kafka/flush failure exits 1 after Mongo writes, with no ACA Job retry. Neither exit alone proves coverage/convergence or atomic recovery. |

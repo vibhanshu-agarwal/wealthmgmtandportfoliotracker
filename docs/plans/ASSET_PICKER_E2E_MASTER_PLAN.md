@@ -12,14 +12,17 @@ only when the carrying PR merges into main. Runtime/demo acceptance remains gove
 The review follow-up records the source-confirmed
 [advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
 Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
-not cover it. The architecture review also confirms an OPEN
+not cover it. The architecture review also confirmed the subsequently fixed
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
-Price-write treatment has priority: reviewed removal `83607f5d` merged through
+Price-write closure is separate from the earlier demo suite: reviewed removal `83607f5d` merged through
 [#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327) at `9c733f6d`,
-with an identical tree and heavy PR CI green. It is not deployed; deployment, serving validation
-and historical-data reads each need approval. The bounded packet is accepted locally as recorded
-in the dashboard, not executed. Its merged gateway test supplies one protected-route spoof proof;
+with an identical tree and heavy PR CI green. Owner-authorized scoped deploy 36259687567 succeeded
+on market-data revision `--0000082` / image `sha256:48a649c0…9881`; one owner-run Gate D probe
+returned `REMOVED`, exit 0, with AAPL reads OK on 2026-09-26 UTC. The price-write defect is CLOSED
+within that route-removal scope, based on saved deploy logs and terminal-output transcription,
+not a new Codex live/Azure/database read. Optional historical-data audit Gate E stays open and
+requires separate design/approval; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
 broader header coverage remains OPEN. Documentation filing remains separate from code publication.
 No application code or live operation is authorized by this documentation update.
 
@@ -50,7 +53,9 @@ post-#320 suite/cleanup result. Older baseline paragraphs below retain their his
 they are not fresh serving-state assertions. The backlog index records the independent review;
 the audit is filed through #324 (`6f1e5700`).
 The later flow/architecture review adds three OPEN security/coverage entries against `main@8aa4035b`,
-bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
+initially bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
+The later separately recorded price-write closure brings current totals to 9 fixed/completed,
+2 superseded and 22 OPEN across those same 33 directories.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

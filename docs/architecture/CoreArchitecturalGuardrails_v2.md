@@ -65,9 +65,10 @@ topics or replay production data.
 - Preserve B2's exact demo write exceptions; do not claim `ro` blocks all saves.
   Manual reset has additional identity/guard checks, and presence is advisory, not a lock.
   The reset response exposes an opaque replica token, not the shared internal key.
-- The public market price POST lacks operator authorization for ordinary signup users;
-  [its OPEN defect](../todos/backlog/public-market-price-write-authorization/README.md) is not
-  mitigated by blocking only `ro=true`. Direct internal seed/reset routes are publicly routed,
+- The audited public market price POST lacked operator authorization for ordinary signup users;
+  blocking only `ro=true` did not mitigate it. [Its defect](../todos/backlog/public-market-price-write-authorization/README.md)
+  is now CLOSED by removal, scoped deploy and one owner-run live probe; this certifies no past-data
+  cleanliness. Direct internal seed/reset routes are still publicly routed,
   shared-key-gated and lack JWT/origin/rate-limit layers; do not call them private network APIs.
 - User-ID injection has a unit assertion, but named spoofing cases only check non-401 status.
   Keep [direct sanitization regression proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
