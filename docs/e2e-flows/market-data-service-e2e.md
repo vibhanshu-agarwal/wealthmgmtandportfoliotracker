@@ -32,10 +32,10 @@ reads MongoDB through `AssetPriceRepository`.
 |---|---|
 | `GET /api/market/prices?tickers=...` | Up to 200 distinct, trimmed tickers; more returns 400. Each requested ticker gets a row, including explicit unavailable rows for missing data. |
 | `GET /api/market/prices` (no filter) | Returns at most 100 stored documents; it is not a complete-catalog listing. |
-| `POST /api/market/prices/{ticker}` | Manual price update from a JSON decimal body; persists and submits an asynchronous Kafka send. A 200 does not prove broker acknowledgment. This is a write, not part of normal page reads. |
+| `POST /api/market/prices/{ticker}` | Present at audited baseline `8aa4035b`, removed from main through #327 (`9c733f6d`) with no replacement. Deployment/live validation remain outstanding. The old handler persisted a JSON decimal and submitted an asynchronous Kafka send; a 200 did not prove broker acknowledgment. |
 | `GET /api/market/health` | Public service-UP handler; not a Yahoo-price or Kafka-delivery acceptance test. |
 
-**Authorization defect:** the public price POST has no operator role or internal-key check.
+**Audited-baseline authorization defect:** the public price POST had no operator role or internal-key check.
 Ordinary signed-in accounts, including self-signups, are permitted; the gateway's read-only
 filter blocks `ro=true` accounts only. The service's key filter covers `/api/internal/**`, not
 this path. It alters shared data; no frontend page calls it. The OPEN
@@ -43,10 +43,11 @@ this path. It alters shared data; no frontend page calls it. The OPEN
 the fully source-wired Azure route and the untested deployed exposure. Describing a manual write
 here is not a claim that an application approval gate protects it.
 
-**Local remediation, not the audited/serving baseline:** independently reviewed commit `83607f5d`
+**Merged remediation, not a serving-state claim:** independently reviewed commit `83607f5d`
 removes that POST with no alias or replacement. Real Mongo/Kafka tests record refusal with unchanged
-data/events, with a required control write and failing restored-endpoint mutant. It is not merged
-or deployed; see the finding for evidence limits and the remaining delivery/validation approvals.
+data/events, with a required control write and failing restored-endpoint mutant. It merged through
+#327 (`9c733f6d`) but is not deployed/live-validated; see the finding for evidence limits and the
+remaining operational approvals. The rest of this source audit retains its `8aa4035b` baseline.
 
 [MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)
 includes nullable `currentPrice`, `quoteCurrency`, observation/reference timestamps

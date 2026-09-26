@@ -18,9 +18,10 @@ adds three OPEN findings: [advisor authorization](portfolio-advisor-cross-user-a
 [header-spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md).
 The original 30-item audit is filed through #324 (`6f1e5700`); its independent acceptance does not
 cover this later addition. Claude accepted the documentation corrections through `c88f076c`;
-the later local-remediation status reconciliation requires its own review/publication under the rule above.
-Price-write removal at `83607f5d` is independently reviewed locally, not merged/deployed; its
-gateway test partially covers the separate header-proof item. Neither item is closed.
+Claude also accepted local-remediation status at `0632dd07`; the later merge-status follow-up
+requires its own review/publication under the rule above. Price-write removal at `83607f5d` is
+merged through #327 (`9c733f6d`), not deployed/live-validated; its gateway test partially covers
+the separate header-proof item. Neither item is closed.
 No original disposition changes. Current totals are 33 directories: 8 fixed, 2 superseded, 23 open.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
@@ -76,13 +77,13 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Demo portfolio/ticker integrity](demo-portfolio-and-ticker-integrity/README.md) | **Partially resolved.** Independent 159-asset demo seed, BTC/MM repair, catalog packaging and freshness delivered. Tata successor/allocation remains an open product/data decision. |
 | [Full E2E coverage audit](e2e-coverage-audit-post-asset-picker/README.md) | **Follow-on audit.** Inventory exclusions/vacuity and complete cross-suite acceptance matrix; demo suite is evidence input, not this audit's closure. |
 | [EventBridge warming](eventbridge-not-working/README.md) | **Parked AWS standby work.** Several old source prerequisites fixed; reactivation remains a cost/operations decision with fresh prerequisites, not an active defect claim. |
-| [Gateway user-header spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md) | One protected market-route forwarded-header assertion delivered locally in `83607f5d`; duplicate headers, permit-all paths and broader mutation proof remain open. No current bypass is claimed. |
+| [Gateway user-header spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md) | One protected market-route forwarded-header assertion merged through #327 (`9c733f6d`); duplicate headers, permit-all paths and broader mutation proof remain open. No current bypass is claimed. |
 | [Kafka consumer wake/scaling](kafka-consumers-have-no-scale-rule/README.md) | No Kafka scaler; consumers explicitly scale to zero. Decide idle-liveness policy and assess retention; session warm-up is not autonomous wake. |
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
 | [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **Source-confirmed IDOR; owner disposition pending.** Path-selected user ID is forwarded without subject comparison. Azure URL/reachability is unverified; missing source wiring is not an authorization control. |
-| [Public market-price write authorization](public-market-price-write-authorization/README.md) | **OPEN; removal implemented and independently reviewed locally at `83607f5d`, not merged/deployed.** Publication, deployment and serving validation remain outstanding; historical-data anomaly triage requires separate approval and cannot prove past non-use. |
+| [Public market-price write authorization](public-market-price-write-authorization/README.md) | **OPEN; reviewed removal merged through #327 (`9c733f6d`), not deployed/live-validated.** Deployment and serving validation remain outstanding; the bounded packet is accepted locally. Historical-data anomaly triage requires separate approval and cannot prove past non-use. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |

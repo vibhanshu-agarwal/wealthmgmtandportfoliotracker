@@ -15,10 +15,12 @@ Its deployed Azure reachability is unverified; prior portfolio/session isolation
 not cover it. The architecture review also confirms an OPEN
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
-Price-write treatment has priority: owner-approved local removal at `83607f5d` is independently
-reviewed and acceptable on Codex's source/recorded-evidence review, but is not merged or deployed.
-Publication, merge, deployment, serving validation and historical-data reads each need approval.
-Its gateway test supplies one protected-route spoof proof; broader header coverage remains OPEN.
+Price-write treatment has priority: reviewed removal `83607f5d` merged through
+[#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327) at `9c733f6d`,
+with an identical tree and heavy PR CI green. It is not deployed; deployment, serving validation
+and historical-data reads each need approval. The bounded packet is accepted locally as recorded
+in the dashboard, not executed. Its merged gateway test supplies one protected-route spoof proof;
+broader header coverage remains OPEN. Documentation filing remains separate from code publication.
 No application code or live operation is authorized by this documentation update.
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**

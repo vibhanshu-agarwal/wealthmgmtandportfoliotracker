@@ -1,20 +1,22 @@
 # Public market-price write lacks operator authorization
 
-> **Owner approval still required:** code push/PR, merge, deployment, live validation and any
-> historical-data read are separate decisions. The owner approved local preparation, now delivered
-> at `83607f5d`; that approval grants none of these operational actions. Documentation publication
-> also requires explicit approval. Until delivery and serving validation, this item remains OPEN.
+> **Owner approval still required:** deployment, live validation and any historical-data read
+> are separate decisions. Code publication/merge completed through #327; those actions grant no
+> operational approval. Documentation publication also requires explicit approval. Until deployment
+> and serving validation, this item remains OPEN.
 
 **Status:** OPEN — source-confirmed authorization defect; deployed exploitability not live-tested.
 **Priority:** High, urgent security treatment before project freeze; ahead of the advisor IDOR.
 **Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
-**Implementation:** local removal at `83607f5d852f1a1c4d6dc8e055780fa0b3b33976`, independently
-reviewed ACCEPT WITH MINORS (0 Critical, 0 Important); not merged or deployed.
+**Implementation:** removal at `83607f5d852f1a1c4d6dc8e055780fa0b3b33976`, independently
+reviewed ACCEPT WITH MINORS (0 Critical, 0 Important), merged through
+[#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327)
+as `9c733f6df966c1acff80cdc4b9ddf35285512398`; not deployed/live-validated.
 **Demo disposition:** no waiver; the previous `PASS_WITH_EXPECTED_DEFECTS` suite did not cover it.
 
 ## Source finding and shared-data impact
 
-The following describes the audited `main@8aa4035b` baseline, not the unmerged fix. No fresh
+The following describes the audited `main@8aa4035b` baseline, not the merged fix. No fresh
 serving-revision read or live exploit was performed during this documentation reconciliation.
 
 [SecurityConfig](../../../../api-gateway/src/main/java/com/wealth/gateway/SecurityConfig.java)
@@ -46,7 +48,7 @@ safe merely because deployed exploitability is untested. The 08:00 UTC refresh o
 tickers for which provider data is returned and is not a reliable security recovery mechanism;
 history/reference data may also need reviewed reconciliation after any actual tampering.
 
-## Local remediation and reviewed evidence — 2026-09-26 UTC
+## Merged remediation and reviewed evidence — 2026-09-26 UTC
 
 Claude removed the public POST and the controller's service dependency, without an alias or
 replacement route. The service write API, scheduled refresh, local seeding and key-gated internal
@@ -70,14 +72,23 @@ The local patch is acceptable on the inspected source/recorded evidence. This is
 closure. Existing B1 candidate-envelope pins include the old controller blob; reattestation is
 separate, not an automatic policy repin or B1 completion.
 
+Codex verified #327 merged at 2026-09-26 17:07:50 UTC with exactly the four reviewed files and
+a tree identical to `83607f5d`. Heavy PR CI jobs (unit/integration, Pact, Docker build and all
+four Azure-image smoke cases) passed rather than taking the docs-only path. Post-merge CI was
+still running at reconciliation. The latest GitHub Deploy record is at `db51cf5b`, not the fix;
+this check excludes neither Azure changes outside GitHub nor untested deployed exploitability.
+
 ## Remaining delivery and closure evidence
 
 Removal is the chosen local treatment; the earlier removal/key-gating options below are retained
-as design context, not a request to add another route. Obtain publication, merge and scoped
-market-data deployment approval, then bind validation to the serving candidate.
+as design context, not a request to add another route. Publication/merge are complete. Obtain
+scoped market-data deployment approval, then separate live-validation approval and bind the
+result to the serving candidate.
 
-For a proposed safe live probe, first prove the exact old/fixed status pair offline using a
-non-numeric JSON body. Use a valid ordinary writable account: anonymous/showcase 401/403 can
+Codex accepted the bounded packet and probe after 19 offline tests and verification of 13
+manifest entries; their hashes are recorded in the dashboard. The old/fixed 400/404 pair was
+established offline with the exact non-numeric body. Use a valid ordinary writable account:
+anonymous/showcase 401/403 can
 occur on either version and do not distinguish the fix. Never use a numeric body, including a
 nonexistent ticker. Rate limits, timeouts and 5xx are inconclusive, not removal evidence.
 

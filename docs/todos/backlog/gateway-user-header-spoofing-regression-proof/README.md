@@ -3,11 +3,11 @@
 > **Approval boundary:** this records a test-evidence gap, not a new live spoofing test or code
 > change. Implementation, live access and documentation publication require their relevant approval.
 
-**Status:** OPEN — one protected-route spoof assertion delivered locally; broader regression
+**Status:** OPEN — one protected-route spoof assertion merged through #327; broader regression
 coverage remains incomplete. Not a confirmed current bypass.
 **Priority:** Medium (security regression coverage).
 **Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
-**Implementation:** partial local coverage at `83607f5d`, not merged/deployed; the broader
+**Implementation:** partial coverage at `83607f5d`, merged through #327 (`9c733f6d`); the broader
 work below remains open. Existing source and accepted demo evidence are not invalidated by this
 gap; neither is complete header-sanitization regression coverage established.
 
@@ -30,7 +30,7 @@ it captures the forwarded user ID and checks the subject, but supplies no spoofe
 rewrite this gap as "no user-ID injection test" or as a live identity-spoofing exploit.
 Reset-specific header tests are separate from this general filter's routed-path contract.
 
-**Local price-fix follow-up:** `MarketPriceWriteGatewayIntegrationTest` at `83607f5d` sends one
+**Merged price-fix follow-up:** `MarketPriceWriteGatewayIntegrationTest` at `83607f5d` sends one
 conflicting caller header on the protected market POST, captures the upstream request under the
 production route list, and requires exactly the JWT subject. Anonymous/showcase cases must not
 reach the stub. This is a direct single-route proof, unlike the older named status-only cases.

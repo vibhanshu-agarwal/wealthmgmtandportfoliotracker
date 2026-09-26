@@ -80,9 +80,10 @@ events, not just caller-owned data. This OPEN
 [price-write authorization defect](../todos/backlog/public-market-price-write-authorization/README.md)
 has source-wired Azure routing, but was not tested live. The frontend has no caller for it.
 
-That paragraph describes the audited `main@8aa4035b` baseline. Local commit `83607f5d` removes
+That paragraph describes the audited `main@8aa4035b` baseline. Reviewed commit `83607f5d` removes
 the route without an alias; it has independent review and source/recorded-evidence acceptance,
-but is not merged/deployed. The service write API and legitimate refresh/seed paths remain.
+and merged through #327 (`9c733f6d`), but is not deployed/live-validated. The service write API
+and legitimate refresh/seed paths remain.
 Removal does not undo historical writes; a Mongo anomaly audit cannot prove past non-use or
 clean downstream history/caches. Delivery, serving validation and data reads need separate approval.
 
