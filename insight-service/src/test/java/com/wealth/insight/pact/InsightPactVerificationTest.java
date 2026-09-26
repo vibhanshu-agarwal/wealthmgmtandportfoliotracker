@@ -10,7 +10,6 @@ import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.AiInsightService;
 import com.wealth.insight.GlobalExceptionHandler;
 import com.wealth.insight.InsightController;
-import com.wealth.insight.InsightService;
 import com.wealth.insight.MarketDataService;
 import com.wealth.insight.dto.TickerSummary;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,9 +38,6 @@ import static org.mockito.Mockito.when;
 @Provider("insight-service")
 @PactFolder("../frontend/pacts")
 class InsightPactVerificationTest {
-
-    @Mock
-    private InsightService insightService;
 
     @Mock
     private MarketDataService marketDataService;

@@ -31,14 +31,13 @@ class InsightControllerTest {
 
     private MockMvc mockMvc;
 
-    @Mock private InsightService insightService;
     @Mock private MarketDataService marketDataService;
     @Mock private AiInsightService aiInsightService;
 
     @BeforeEach
     void setUp() {
         InsightController controller = new InsightController(
-                insightService, marketDataService, aiInsightService,
+                marketDataService, aiInsightService,
                 new TickerCatalogService(SupportedCatalog.load()));
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())

@@ -33,7 +33,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @ExtendWith(MockitoExtension.class)
 class GracefulDegradationPropertyTest {
 
-    @Mock private InsightService insightService;
     @Mock private MarketDataService marketDataService;
     @Mock private AiInsightService aiInsightService;
 
@@ -56,7 +55,7 @@ class GracefulDegradationPropertyTest {
         // on the per-ticker endpoint. Verify the response still contains price data
         // with aiSummary absent (null).
 
-        InsightController controller = new InsightController(insightService, marketDataService, aiInsightService,
+        InsightController controller = new InsightController(marketDataService, aiInsightService,
                 new TickerCatalogService(SupportedCatalog.load()));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
