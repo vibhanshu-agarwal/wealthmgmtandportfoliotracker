@@ -1,42 +1,95 @@
-# Core Architectural Guardrails & Project State
+# Core Architectural Guardrails & Project State (v2)
 
-## 1. Project Context
+**Reconciled:** 2026-09-26 UTC against `main@8aa4035b`. These are source/design boundaries
+for the portfolio demo, not fresh deployment proof or an execution approval. Repository
+[agent instructions](../../AGENTS.md) and current owner decisions govern authority; this document
+does not replace them.
 
-- **Active Roadmap:** Refer to `docs/agent-instructions/ROADMAP_AI_POWERED_WEALTH_TRACKER.md` for current feature planning. Disregard older roadmaps unless explicitly instructed.
-- **Documentation:** Always update `docs/changes` after significant implementations. Review `docs/adr` before proposing new system designs.
-- **Active / Implemented (late April 2026):**
-  1. **Redis-backed distributed rate limiting** in api-gateway (`GatewayRateLimitConfig`) — replaces the previous in-memory limiter; Lettuce + Upstash TLS in production, Testcontainers Redis in tests.
-  2. **Kafka Dead-Letter Topic** (`market-prices.DLT`) in portfolio-service — `MalformedEventException` registered as non-retryable on `DefaultErrorHandler`.
-  3. **Lambda cold-start mitigation** via the Terraform `warming` module (**EventBridge Rules + API Destinations** at `rate(5 minutes)` hitting `/actuator/health` on each Function URL + CloudWatch alarm on `ConcurrentExecutions ≥ 8` → SNS email). Rules are used instead of EventBridge Scheduler because Scheduler does not accept API Destination ARNs as targets. Currently parked behind `enable_warming = false` for free-tier conservation; see `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`.
-  4. **Terraform serverless infrastructure** is the single source of truth — the legacy AWS CDK code is deprecated.
-- **Open / Backlog:**
-  1. Event schema registry + topic versioning convention.
-  2. Event-id dedup ledger for high-value consumers.
-  3. Consumer-lag dashboards / distributed tracing baseline.
+## 1. Authoritative status and scope
 
-## 2. Infrastructure & Cost (STRICT)
+- Use [ROADMAP](../../ROADMAP.md), [enhancements v5](../../roadmap_enhancements_v5.md) and the
+  [backlog index](../todos/backlog/README.md), not the older AI-roadmap snapshot as current state.
+- The [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains accepted runtime
+  evidence and `PASS_WITH_EXPECTED_DEFECTS`. Source completeness is not a new live pass.
+- [Architecture index](README.md) separates current references from historical AWS/LocalStack
+  records. Their old approvals, cost limits, cloud inventories and TODOs are not renewed here.
+- Future Sharpe/Sortino, richer FA/TA chat and additional charts remain unscheduled. This audit
+  adds no implementation commitment or requirement for another demo run.
 
-- **Zero-Cost Free Tier:** AWS Free Tier eligible resources only. No NAT Gateways, Multi-AZ RDS, or Provisioned IOPS. The ap-south-1 account-level cap is 10 unreserved concurrent executions, so `reserved_concurrent_executions` is intentionally **omitted** on every Lambda — reserving any value would block other functions from running. CloudFront uses `PriceClass_100`.
-- **Terraform-only:** All AWS resources are provisioned via `infrastructure/terraform/`. The four Spring Boot services run as **AWS Lambda functions on arm64 / Graviton2** using container images (ECR) and the **Lambda Web Adapter** sidecar — no ECS, ALB, NAT Gateway, RDS, or ElastiCache resources may appear in `.tf` files.
-- **Managed vs. Standard:** Where running a "standard" service (Kafka, Redis) on an EC2 instance would violate Free Tier constraints, use a managed external provider (Aiven Kafka, Upstash Redis, MongoDB Atlas) and keep the application code abstracted behind Spring interfaces.
+## 2. Deployment and cost discipline
 
-## 3. Application Code & Multi-Cloud Agnosticism
+Azure Static Web Apps and Container Apps are the accepted demo target. AWS code is retained,
+not a verified immediate rollback. Infrastructure is Terraform-managed in separate Azure/AWS
+roots; legacy CDK is not the active deployment authority.
 
-- **Hexagonal Architecture:** The core domain logic MUST remain pure.
-- **No Cloud Lock-in:** Do NOT use AWS-specific SDKs (e.g., `software.amazon.awssdk`) inside the core business logic or domain layers. The Lambda Web Adapter keeps Spring Boot HTTP code identical between local Docker Compose and AWS Lambda.
-- **Abstractions:** Use framework-level abstractions (Spring Cloud Stream, Spring Data JPA / Interfaces) so the application can be seamlessly ported to Azure or GCP in the future.
+Do not impose the old AWS ten-slot quota or "zero-cost forever" claims on Azure. Budgets,
+free-tier assumptions and source caps are not a billing ceiling. Revalidate costs/quotas under
+approved access before changes. No always-on replicas, warming schedules, native-image switch,
+resource deletion or cloud migration follows from this audit.
 
-## 4. Testing Strategy
+Application deploy goes through the reviewed `deploy.yml` dispatcher; Azure Terraform
+`plan`, `remote-plan` and `apply` have different state/authority scopes. A merge does not apply
+Azure infrastructure. Use [Current operations](../runbooks/CURRENT_OPERATIONS.md) for exact
+inputs/gates. Never bypass them with a historical command or an unreviewed environment overwrite.
 
-- **Layered Testing:** Every layer must have automated tests (Unit, Integration, Architecture, Contract).
-- **Local Validation:** The application must be fully testable locally without deploying to real AWS. Use Testcontainers (Postgres, MongoDB, Kafka, Redis) for integration tests; LocalStack for Terraform-driven AWS resource tests.
-- **Pact Contracts:** Pact consumer tests run from `frontend/` (`vitest.pact.config.ts`); provider verification runs in `portfolio-service` and `insight-service`.
-- **E2E:** Playwright runs against Docker Compose in `ci-verification.yml`/`frontend-e2e-integration.yml` and against the live CloudFront stack in `synthetic-monitoring.yml`.
-- **Infrastructure Testing:** `terraform fmt -check -recursive` and `terraform validate` are gated in `terraform.yml`. Module-level Jest tests under `infrastructure/test/` cover legacy CDK assertions and Lambda config invariants.
+## 3. Module, adapter and contract boundaries
 
-## 5. Specific Architectural Nuances to Enforce
+[settings.gradle](../../settings.gradle) lists four services and three shared modules.
+Java 21 is the current toolchain/runtime basis. The gateway uses WebFlux, other domain HTTP
+services MVC. Application DTO serialization uses Jackson 3; Jackson 2 remains isolated for
+third-party runtime dependencies ([build.gradle](../../build.gradle)).
 
-- **Rate Limiting & Caching (Redis):** Redis is the approved backend for distributed rate limiting **and** for the insight-service ticker cache. All Redis configuration is confined to `application-local.yml` and `application-prod.yml` so the default `application.yml` cannot trigger Spring Boot's Redis autoconfiguration in non-Redis profiles.
-- **Cold-Start Mitigation:** Lambda functions are deployed as container images on **arm64 / Graviton2** with a custom `jlink` JRE (Amazon Corretto 25) to keep cold starts manageable. Function URLs attach to the published `live` alias (not `$LATEST`), which lets us bolt on SnapStart or provisioned concurrency without re-pointing CloudFront. Active runtime mitigation comes from the Terraform `warming` module (EventBridge Rules + API Destinations at `rate(5 minutes)` → `/actuator/health` on each Function URL, with a CloudWatch `ConcurrentExecutions ≥ 8` alarm wired to SNS); `enable_provisioned_concurrency` is available as an optional escalation. **GraalVM Native Images** remain a future lever and are not currently wired.
-- **CloudFront Origin Security:** CloudFront injects `X-Origin-Verify` and the api-gateway `CloudFrontOriginVerifyFilter` returns 403 to any request missing the header. Direct Lambda Function URL access is therefore blocked.
-- **Strict Profile Isolation:** Never mix local infrastructure credentials or URLs (e.g., `localhost:6379`) into the main or AWS profiles. Production secrets flow only via `TF_VAR_*` → Terraform sensitive variables → Lambda env vars.
+Keep domain entities/service transactions in their owner; share wire contracts, catalog and
+sanitizing observation utilities through their respective common modules. Provider SDKs belong
+at integration adapters. Spring Kafka is the implemented messaging integration; do not claim
+Spring Cloud Stream, a schema registry, versioned topics or an outbox is shipped without source.
+
+Pact is HTTP contract coverage, not automatic event-schema compatibility. Changes to shared
+events need producer/consumer fixture and evolution review; this is not permission to change
+topics or replay production data.
+
+## 4. Correctness and security invariants
+
+- Holdings are complete desired-set, version-checked transactions. Preserve decimal fidelity,
+  canonical catalog identities, no-op/version behavior and conflict rejection.
+- Treat missing prices, timestamps and FX as unavailable/partial, not silently complete zeroes.
+  Stale means older than 50 hours, not exactly 50 hours.
+- Mongo write plus Kafka publish is not one transaction. Preserve the distinction between
+  accepted observation, completed publication and consumer catch-up.
+- Portfolio monotonic projection/history guards do not establish insight Redis atomicity,
+  universal event-ID dedup or exactly-once delivery.
+- JWT subject injection is not proof of every downstream endpoint's ownership checks.
+  The path-ID advisor has an OPEN, source-confirmed
+  [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md); do not conflate it
+  with accepted chat. Missing Azure URL wiring is not authorization; live reachability is unverified.
+- Preserve B2's exact demo write exceptions; do not claim `ro` blocks all saves.
+  Manual reset has additional identity/guard checks, and presence is advisory, not a lock.
+  The reset response exposes an opaque replica token, not the shared internal key.
+- The audited public market price POST lacked operator authorization for ordinary signup users;
+  blocking only `ro=true` did not mitigate it. [Its defect](../todos/backlog/public-market-price-write-authorization/README.md)
+  is now CLOSED by removal, scoped deploy and one owner-run live probe; this certifies no past-data
+  cleanliness. Direct internal seed/reset routes are still publicly routed,
+  shared-key-gated and lack JWT/origin/rate-limit layers; do not call them private network APIs.
+- User-ID injection has a unit assertion, but named spoofing cases only check non-401 status.
+  Keep [direct sanitization regression proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
+  OPEN; source stripping is not a tested exploit or complete regression guard.
+- Logout does not revoke an existing one-hour JWT. Keep its accepted defect status visible.
+- Profile-specific origin checks and internal ingress are distinct controls. Do not promise
+  global direct-origin blocking from the gateway filter alone.
+
+## 5. Validation and operational boundaries
+
+Use unit/property/architecture, Testcontainers, HTTP contracts and assembled Compose E2E at
+their actual scopes ([test inventory](IntegrationTestCases.md)). Live synthetics and the
+separate frontend full-stack workflow are manual-only in current source. A skipped job, mock
+response or uncollected scenario is not runtime evidence. LocalStack is not required for
+normal application tests.
+
+Health `UP` does not prove auth/database/consumer/model readiness. For an authorized demo,
+use the reviewed warm-up/operator kit, wait for `GO` and keep it alive. No old AWS warming
+schedule is thereby enabled. Never recover by arbitrary database repair, Kafka offset reset,
+cache deletion or reseeding; obtain a bounded current packet and approval.
+
+Do not publish credentials, JWTs, raw private authenticated artifacts or private kit paths.
+Telemetry sanitization is a source control, not a guarantee every trace/artifact is safe.
+Review published evidence independently; preserve sealed evidence and known limitations.

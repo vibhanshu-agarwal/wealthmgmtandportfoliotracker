@@ -1,5 +1,11 @@
 # Lambda Stopgap — Execution Plan
 
+> **Historical reference — classified 2026-09-26 UTC.** April 2026 AWS execution history, not a ready-to-execute current plan. Azure is the accepted demo target. Old preflight approvals, cost estimates, Scheduler sketches, filter ordering and warm-up rules below are historical and confer no new authority.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 **Date:** 2026-04-22 (revised — §12 decisions resolved, §2.9 pre-flight outcomes recorded, §7.1.1 corrected per P6, P2 + P8 verified via AWS CLI, P7 verified via `gh`, **P4 formal verified via Gradle + JAR inspection — all 8 pre-flights clear**)
 **Companion to:** [`lambda-vs-lightsail-analysis.md`](./lambda-vs-lightsail-analysis.md) (§2.1.1, §2.2.1)
 **Decision captured:** Stay on Lambda. Execute ARM64 architecture flip + EventBridge scheduled warming (Option 2, all 4 functions) + Playwright E2E hardening.

@@ -1,5 +1,11 @@
 # Executive Summary
 
+> **Historical reference — classified 2026-09-26 UTC.** Earlier architecture snapshot. Use [Overview v2](WealthManagementArchitectureOverview_v2.md) for current modules, runtime and Azure demo boundaries.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 The Wealth Management & Portfolio Tracker is a modern financial application built with a Next.js frontend and a Spring Boot backend platform.
 
 ## At a glance

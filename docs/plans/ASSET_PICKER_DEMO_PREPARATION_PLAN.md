@@ -8,16 +8,71 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-26 UTC (roadmap/root README/v5 preparation; backlog and runbooks filed;
+**Latest reconciliation:** 2026-09-26 UTC (four E2E service-flow guides and architecture-folder
+reconciliation prepared against
+`main@8aa4035b`; roadmap/root README/v5, backlog and runbooks filed;
 post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
-**Owner approval required before push/PR and merge of the roadmap/README/v5 reconciliation:** each
+**Owner approval required before push/PR and merge of the flow/architecture reconciliation:** each
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
+
+**Operational status:** owner-authorized market-data deployment (Gate C) and one live probe
+(Gate D) are complete. Optional historical-data audit Gate E remains open and needs separate
+design/approval; no further live operation or data repair is authorized here. Price-write
+removal `83607f5d` is published and merged through [#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327)
+at `9c733f6df966c1acff80cdc4b9ddf35285512398` (2026-09-26 17:07:50 UTC). Codex verified the merge
+tree equals the reviewed head and the heavy PR CI jobs passed. Gate C's saved record reports main
+CI green before dispatch. Scoped deploy
+[36259687567](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36259687567)
+succeeded: market-data revision `--0000082`, image `sha256:48a649c0…9881`, 100% traffic; refresh Job
+on the same digest, other apps unchanged within the snapshot comparison's fields. The base image
+tag resolved a different digest, as recorded. At approximately 18:13–18:15 UTC, one owner-run Gate D
+probe returned `REMOVED`, exit 0: one non-numeric POST returned 404 with market-data's error body,
+and the AAPL read returned 200 with one finite, positive price. The
+[public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+is **CLOSED — fixed, deployed and live-validated**, not waived. Codex checked the saved deploy logs
+and terminal-output transcription; no new Azure/database read or live probe was made. Runtime
+behavior comes from Gate D; revision/digest attribution comes from Gate C artifacts, not the probe.
+This does not prove past non-use, clean historical prices or unchanged out-of-band configuration.
+The additional
+[header-sanitization test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
+is OPEN regression-proof work, with one protected-route spoof assertion merged through #327 in the
+price-fix tests; broader cases remain unproven. It is not a confirmed current bypass. No earlier
+demo waiver covers the still-open advisor/header findings. Current backlog totals are 33 directories:
+9 fixed, 2 superseded, 22 OPEN.
+
+The local deployment/probe packet is accepted by Codex: packet SHA-256
+`0602badfbec143587c9052d7960f4e7a1742d8ab0a924d7916c854c200db13d9`, probe SHA-256
+`e16a31143e4b99fc8ea03638a0568e429e59ef894b502f736f51756b6949cf6b`.
+Codex reran 19 offline tests and verified all 13 manifest entries. The packet stops on the newest
+started market-data attempt unless fully successful, retains separate before/after evidence,
+and uses a redirect-free non-numeric one-shot probe with explicit writable-account and finite-price
+guards. Codex subsequently reran 36 launcher/probe tests; launcher SHA-256
+`f909e06fc731006f2b05850daa5f447d888db0ab3a43b2ba7b9a34bfa29bd90d` pins the unchanged probe.
+After the separately approved run, all 21 manifest entries verify; manifest SHA-256
+`a634127ff729d07fd7d0cb6ca671605764db2edb61fb9fb31d4cad98d8982d0d`.
+Closure evidence and its limits are recorded in the linked backlog item. This update authorizes
+no additional workflow dispatch, live login/probe or data audit.
+
+The four [service-flow guides](../e2e-flows/) describe current request, composition/reset,
+stored-price refresh/projection and chat-attribution paths. This is source reconciliation,
+not a new live test or closure of the wider documentation pass.
+The [architecture index](../architecture/README.md) identifies 6 corrected current references,
+8 historical records with new classification banners, and 1 formerly empty historical
+placeholder. Azure/Java 21, data/AI boundaries and the logical diagram are corrected; no live
+inventory or new application proof was produced by the audit; the separately recorded price-write
+closure above is based on the later owner-authorized deploy/probe, not documentation review alone.
+The follow-up corrects the showcase-save wording and service failure/profile/security descriptions.
+It adds an OPEN [portfolio advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md):
+source confirms missing subject binding; Azure reachability is unverified because the source
+insight-service environment omits its portfolio URL. The prior suite did not test this endpoint.
+This new finding has no owner non-blocking disposition; security treatment is a separate decision,
+not a code fix or deployment authorized by this documentation bundle.
 The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
-[enhancements v5](../../roadmap_enhancements_v5.md) distinguish delivered capabilities, open
-residuals and the owner's three deferred requests. There is no feature implementation approval.
+[enhancements v5](../../roadmap_enhancements_v5.md) are filed through #326 (`8aa4035b`),
+with the owner's three requests still deferred. There is no feature implementation approval.
 The [backlog audit](../todos/backlog/README.md) is filed through #324 (`6f1e5700`), and the
 [runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Those approvals do not
 authorize this later bundle. If publication approval is withheld, this bundle stays local.
@@ -136,8 +191,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, targeted #3–#6 checks ran, and the suite's one expected defect is accepted. Named inconclusive/unverified cases remain non-blocking for this demo, not PASS/fixed/closed | Retain the evidence limits below |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), backlog through #324 (`6f1e5700`), and runbooks through #325 (`5d559478`). Roadmap/root README/v5 reconciliation is prepared, including three unscheduled owner requests; it is not filed until its reviewed carrying PR merges. The operator script remains a private reviewed draft | Independently review and file the roadmap/README/v5 bundle under owner approval. Continue the wider documentation/maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Advisor IDOR remains OPEN with owner disposition pending. Header proof is OPEN with partial merged coverage | Decide advisor treatment; independently review/file this closure. Any Gate E audit needs separate design/approval. Do not inherit earlier non-blocking decisions |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), and roadmap/root README/v5 through #326 (`8aa4035b`). Claude accepted flow/architecture corrections and local-remediation status now at `7ea17252`, reviewed before the content-preserving rebase onto #327; the later `7ea17252..2af62b29` merge/deploy/probe-status review required citation/wording corrections, addressed by this follow-up. Filing follows the publication rule above. The operator script remains a private reviewed draft | Check the narrow citation/wording follow-up, then file under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -145,9 +200,16 @@ checks and final-build rehearsal are distinct records. The suite does not turn a
 inconclusive or unverified observations into passes or fixes.
 
 **Fast-track status publication gate complete:** #323 merged the qualified suite/cleanup status
-at `d515aa5b` on 2026-09-25. No technical or status-publication fast-track gate remains open under
-the accepted desktop-demo contract. This does not complete the separately required freeze
+at `d515aa5b` on 2026-09-25. At that acceptance, no technical or status-publication fast-track
+gate remained open within the then-accepted desktop-demo scope. This does not complete the separately required freeze
 documentation or media package, or close accepted/unverified defects.
+That conclusion concerns the accepted evidence scope: the later price-write defect and advisor
+IDOR were not exercised by those checks. Price-write removal now has its own merge/deploy/probe
+closure, not an inherited suite PASS. The advisor IDOR remains **OPEN with owner disposition
+pending**, and its live exploitability is untested; decide its treatment before expanding the
+readiness claim. Historical-price audit Gate E is optional/open and certifies no past-data integrity.
+The header-sanitization regression-proof gap is separate OPEN test work, not a current
+bypass proved by this source audit.
 
 The operator-script review, final-build rehearsal, targeted #3–#6 demo dispositions, full suite
 and cleanup are done. The seven non-USD #3 value checks and listed edge cases remain inconclusive
@@ -658,9 +720,13 @@ The later [backlog audit](../todos/backlog/README.md) records its independent re
 for the project freeze through #324, merged at `6f1e5700`.
 The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d559478`) at source/
 retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
-[root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are prepared
-against that baseline. Their filing requires independent review and owner-authorized merge;
-an unmerged copy remains a candidate. The broader documentation pass is not complete.
+[root README](../../README.md) and [enhancements v5](../../roadmap_enhancements_v5.md) are filed
+through #326 (`8aa4035b`). The later flow/architecture corrections, showcase-save wording and
+three new security/coverage entries and local-remediation status now at `7ea17252` were reviewed
+and accepted before the content-preserving rebase onto #327. The later merge/deploy/probe-status
+review of `7ea17252..2af62b29` accepted the closure subject to citation/wording corrections,
+addressed by this follow-up. The publication rule above governs filing; the broader
+documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a
 portfolio-demo gate.
@@ -703,9 +769,8 @@ The backlog reconciliation is filed through #324 (`6f1e5700`).
 **Runbook filing rule:** the independently reviewed reconciliation is filed through #325
 (`5d559478`) at source/status scope, not live verification.
 
-**Roadmap/README/v5 filing rule:** this preparation counts as filed only when its independently
-reviewed carrying PR merges into `main` under explicit owner publication/merge approval. An
-unmerged candidate does not satisfy filing. None of these documentation filings completes the
+**Roadmap/README/v5 filing:** independently reviewed and filed through #326 (`8aa4035b`).
+None of these documentation filings completes the
 wider documentation pass, media package, maintenance handoff or private cleanup; the three
 new feature requests remain deferred and do not block the freeze.
 
@@ -718,14 +783,29 @@ new feature requests remain deferred and do not block the freeze.
   evidence.
 - [ ] Update architecture diagrams and component/data-flow descriptions where deployed behavior
   changed.
+  The [architecture folder](../architecture/README.md) is source-reconciled against
+  `main@8aa4035b` (2026-09-26 UTC), including the PlantUML source, current references and
+  historical classification. Preparation is complete; independent review and filing are still
+  required. No diagram rendering or fresh serving-state verification is claimed.
 - [ ] Document signup, authentication, portfolio mutation, conflict, persistence, reset,
   price/freshness, chatbot, rollback, and multi-user E2E flows.
+  The four existing [service-flow guides](../e2e-flows/) have been source-audited and corrected
+  against `main@8aa4035b` (2026-09-26 UTC). Their preparation covers the service request/event
+  paths, not a new live acceptance run, a complete rollback procedure or the remaining
+  multi-user/test-lifecycle handoff. This broader box remains open.
 - [ ] Add demo/operator instructions, test-data lifecycle, evidence locations, and known nonblocking
   backlog.
 - [ ] Cross-check SHAs, revisions, flags, counts, links, and status claims before publication.
 
 Mandatory factual status records may be updated earlier. The comprehensive documentation pass
 belongs here and must not delay Phase 1.
+
+**Flow/architecture filing rule:** the corrected service-flow guides and architecture-folder
+reconciliation count as filed only when their independently reviewed, owner-authorized carrying PR merges into
+`main`. An unmerged branch copy is a candidate. No new runtime verdict or defect closure follows
+from source reconciliation. In particular, the guides document B2's exact read-only-write
+exceptions and distinguish the separate path-ID-based portfolio-advisor endpoint from the
+accepted ticker-chat path; advisor ownership authorization is not established by this audit.
 
 ---
 

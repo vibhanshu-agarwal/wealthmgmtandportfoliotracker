@@ -1,5 +1,11 @@
 # Design and Requirements: Market Data Resiliency & Expansion
 
+> **Historical reference — classified 2026-09-26 UTC.** Earlier design/requirements snapshot, not the active implementation task list. Current Azure uses a separate scheduled refresh Job, real provider/catalog coverage and stored-price reads; automatic full Mongo replay on API startup is not implemented. Requirement 1 below must not be represented as delivered.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 ## Overview
 This specification addresses data availability and state synchronization within the `market-data-service` and `insight-service`. It resolves a distributed state bug occurring on container restarts and expands the platform's asset coverage by integrating a real-world, delayed market data provider.
 

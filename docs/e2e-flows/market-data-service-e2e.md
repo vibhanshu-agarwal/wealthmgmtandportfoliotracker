@@ -1,111 +1,185 @@
-# Market Data Service End-to-End (E2E) Flow
+# Market Data Service End-to-End Flow
 
-This document describes the flow of data and control for the `market-data-service` in the Wealth Management and Portfolio Tracker application, starting from the frontend.
+**Source audit:** 2026-09-26 UTC against `main@8aa4035b`. These are source/configuration facts,
+not fresh provider, database or cloud verification. Accepted live evidence and unresolved
+limitations are in the [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
 
-> **Deployment context (June 2026):** Multi-cloud via Terraform, with **Azure active (live)** and **AWS a soft-disabled standby**. See `README.md`.
+## 1. Browser reads stored prices
 
-## 1. Frontend Layer (Next.js)
-The frontend consumes market data to display current asset prices and calculate portfolio valuations.
+The Portfolio and Market Data views use
+[portfolio.ts](../../frontend/src/lib/api/portfolio.ts); Edit Holdings uses
+[useDraftPrices](../../frontend/src/lib/hooks/useDraftPrices.ts) for tickers in the draft.
+`usePortfolio` combines the caller's portfolio with stored market-price reads; it does not ask
+Yahoo for a fresh quote on page load.
 
-*   **`usePortfolio` Hook** (`frontend/src/lib/hooks/usePortfolio.ts`): the primary consumer. It fetches the user's holdings from `portfolio-service`, then calls `market-data-service` for the latest prices of all portfolio tickers.
-*   **API Client:** `fetchPortfolio` in `frontend/src/lib/api/portfolio.ts` uses `fetchJson` to call `GET /api/market/prices?tickers=...`.
+`loadMarketPrices` deduplicates and splits requested tickers into **25-ticker batches**, fetches
+them concurrently and merges successful responses. A failed batch degrades to unavailable
+prices without logging the user out. This frontend batch size is not the server's request cap.
 
-## 2. API Call & Routing
+[apiPath](../../frontend/src/lib/config/api.ts) supplies the configured gateway origin.
+Static export has no Next.js proxy. Azure uses the `api.` domain; local configuration targets
+port 8080. The gateway routes `/api/market/**` to `MARKET_DATA_SERVICE_URL`: base JVM default
+`http://localhost:8082`, Compose `http://market-data-service:8082`, Azure internal
+`http://market-data-service`. See the [gateway flow](api-gateway-service-e2e.md) for auth,
+identity, public health exceptions and the read-only-account write rules.
 
-> **Note:** `next.config.ts` is configured for static export (`output: "export"`). It contains **no rewrite or proxy rules** — there is no Next.js proxy layer.
+## 2. HTTP contract
 
-### Path Construction (`frontend/src/lib/config/api.ts`)
-All API calls go through `apiPath()`, which inspects `NEXT_PUBLIC_API_BASE_URL` (embedded at build time):
-*   **Set** (both local and Azure production): returns an **absolute URL**.
-    *   Local: `http://127.0.0.1:8080/api/market/prices`
-    *   Azure: `https://api.vibhanshu-ai-portfolio.dev/api/market/prices`
-*   **Unset** (fallback only): returns a relative `/api/*` path. Not used by the supported environments.
+[MarketPriceController](../../market-data-service/src/main/java/com/wealth/market/MarketPriceController.java)
+reads MongoDB through `AssetPriceRepository`.
 
-### Local Development
-`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` (in `frontend/.env.local`). The browser hits the Spring Cloud Gateway directly on port 8080.
+| Method / path | Current behavior |
+|---|---|
+| `GET /api/market/prices?tickers=...` | Up to 200 distinct, trimmed tickers; more returns 400. Each requested ticker gets a row, including explicit unavailable rows for missing data. |
+| `GET /api/market/prices` (no filter) | Returns at most 100 stored documents; it is not a complete-catalog listing. |
+| `POST /api/market/prices/{ticker}` | Present at audited baseline `8aa4035b`, removed through #327 (`9c733f6d`) with no replacement, deployed in run 36259687567. One owner-run Gate D probe returned 404/`REMOVED`, exit 0, with AAPL reads OK. The old handler persisted a JSON decimal and submitted an asynchronous Kafka send; a 200 did not prove broker acknowledgment. |
+| `GET /api/market/health` | Public service-UP handler; not a Yahoo-price or Kafka-delivery acceptance test. |
 
-### Production (Azure)
-`NEXT_PUBLIC_API_BASE_URL=https://api.vibhanshu-ai-portfolio.dev` is injected by `deploy-azure.yml`. The static frontend is hosted on **Azure Static Web Apps**; the browser calls the **api-gateway Container App** directly via the `api.` subdomain.
+**Audited-baseline authorization defect:** the public price POST had no operator role or internal-key check.
+Ordinary signed-in accounts, including self-signups, are permitted; the gateway's read-only
+filter blocks `ro=true` accounts only. The service's key filter covers `/api/internal/**`, not
+this path. It altered shared data; no frontend page calls it. The now-CLOSED
+[price-write finding](../todos/backlog/public-market-price-write-authorization/README.md) records
+the source-wired Azure route, untested historical exploitability and separate removal/deploy/probe closure. Describing a historical manual write
+here is not a claim that an application approval gate protects it.
 
-### Spring Cloud Gateway → Market Data Service
-The gateway routes based on path predicates (target is env-driven `${app.routes.market-data-url}` → `MARKET_DATA_SERVICE_URL`):
-*   `/api/market/**` → `MARKET_DATA_SERVICE_URL` (`http://localhost:8082` local / `http://market-data-service` ACA internal DNS)
+**Merged, deployed and live-validated remediation:** independently reviewed commit `83607f5d`
+removes that POST with no alias or replacement. Real Mongo/Kafka tests record refusal with unchanged
+data/events, with a required control write and failing restored-endpoint mutant. It merged through
+#327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. See the
+finding for the saved-artifact evidence basis and limits. Optional historical-price audit Gate E
+remains open and needs separate design/approval; removal does not undo prior writes. The rest of
+this source audit retains its `8aa4035b` baseline.
 
-**Authentication:** the gateway validates the HS256 JWT and injects the `X-User-Id` header into every downstream request.
+[MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)
+includes nullable `currentPrice`, `quoteCurrency`, observation/reference timestamps
+and nullable change fields. Missing requested tickers have null data fields, not a fabricated zero
+price or a fabricated observation time. The change uses a stored previous reference;
+`WITHIN_24H_WINDOW` versus `SINCE_PREVIOUS_SNAPSHOT` qualifies its age (18–36 hour window).
+A previous snapshot is not necessarily an exact 24-hour market return.
 
-## 3. Market Data Service Controllers
-*   **`MarketPriceController`**:
-    *   `GET /api/market/prices`: Returns current prices, filterable by a `tickers` query parameter.
-    *   `POST /api/market/prices/{ticker}`: Manually updates a ticker's price (testing / manual overrides).
+## 3. Writes and propagation
 
-## 4. Service Layer & Business Logic
-Core logic resides in `MarketPriceService`:
-1.  **Persistence:** Upserts the latest price into **MongoDB** (the `market_prices` / asset-price collection).
-2.  **Event Distribution:** Publishes an enriched `PriceUpdatedEvent` to the **`market-prices`** Kafka topic, keyed by ticker so per-asset updates stay ordered for consumers.
+[AssetPrice](../../market-data-service/src/main/java/com/wealth/market/AssetPrice.java) is stored in
+MongoDB's `market_prices` collection, keyed by ticker. It holds current price, quote currency,
+update/observation time, and the prior reference price/time.
 
-## 5. Data Layer (MongoDB)
-The `market-data-service` uses **MongoDB** for its primary data store:
-*   **`AssetPrice`**: A document for a ticker's current state (symbol, price, quote currency, timestamps, reference price).
-*   **`AssetPriceRepository`**: A Spring Data MongoDB repository.
+[MarketPriceService](../../market-data-service/src/main/java/com/wealth/market/MarketPriceService.java)
+rolls the prior observation into reference fields, saves MongoDB, then sends
+`PriceUpdatedEvent(ticker, newPrice, quoteCurrency, observedAt, previousReferencePrice,
+previousReferenceAt)` to Kafka topic `market-prices`, keyed by ticker.
 
-## 6. Real-time Event Streaming (Kafka)
-The `market-data-service` is the **source of truth** for asset prices:
-*   **Producer:** emits `PriceUpdatedEvent` messages whenever a price changes (template observation enabled for tracing).
-*   **Consumers:**
-    *   **`portfolio-service`**: updates the `market_prices` projection table in Postgres for fast valuation lookups.
-    *   **`insight-service`**: updates its Redis cache for low-latency AI-driven analysis.
+The scheduled refresh has its own write loop in `MarketDataRefreshService`, not a call through
+`MarketPriceService`. Both paths persist before publishing. MongoDB and Kafka are **not one
+atomic transaction**; this is not an outbox or an exactly-once end-to-end delivery guarantee.
+A new observation can have the same price as the previous one and is still published.
+The manual HTTP path does not await its Kafka send future; a later send failure is not reflected
+in an already returned 200. The scheduled refresh has different completion semantics below.
 
-## 7. Data Seeding & Refresh
-*   **`LocalMarketDataSeeder`** (`@Profile("local")`, gated by `market.seed.enabled`): An `ApplicationRunner` that backfills missing tickers in MongoDB from a JSON fixture at startup. Idempotent. Never instantiated in `aws`/`azure`/`prod`.
-*   **`BaselineSeeder`** (profile-agnostic, gated by `market-data.baseline-seed.enabled`, `matchIfMissing = true`): Ensures every baseline ticker has a shell `AssetPrice` document in Mongo without setting a price. Disabled on AWS (`application-aws.yml` sets `baseline-seed.enabled: false`).
-*   **`StartupHydrationService`** (gated by `market-data.hydration.enabled`, `matchIfMissing = true`): On every startup, re-publishes a `PriceUpdatedEvent` for every ticker that already has a non-null price in MongoDB (read-only on Mongo). This rehydrates downstream caches (insight-service Redis, portfolio-service Postgres projection) after a cold start.
-*   **`MarketDataRefreshJob`** (`@Scheduled` cron, gated by `market-data.refresh.enabled`): Calls the external provider (Yahoo Finance), upserts current prices into Mongo, and re-publishes `PriceUpdatedEvent` records to Kafka. Default cron `0 0 */1 * * *` (hourly).
-    *   **Azure (active):** **enabled** — ACA runs long-lived containers. To control scale-to-zero wake-ups and cost, `application-azure.yml` overrides the schedule to **daily** (`0 0 8 * * *`); prices can therefore be up to ~24h stale between refreshes (acceptable for the demo profile — see `docs/changes/CHANGES_AZURE_COST_SPIKE_FIX_2026-05-17.md`).
-    *   **AWS (standby):** **disabled** (`application-aws.yml` sets `refresh.enabled: false`) because Lambda is not long-lived enough for cron jobs; production hydration there relies on `StartupHydrationService` + `BaselineSeeder`.
+Consumers maintain separate views:
 
-## Summary Flow Diagram
+- Portfolio-service projects latest prices/history into PostgreSQL for valuation.
+- Insight-service writes Redis latest prices and observation windows for summaries/chat.
 
-### Local Development
+Propagation is asynchronous. MongoDB, PostgreSQL and Redis can disagree transiently; a successful
+Mongo read alone does not prove downstream convergence. See the
+[portfolio flow](portfolio-service-e2e.md) and [insight flow](insight-service-e2e.md).
+
+## 4. Refresh: active catalog and provider-symbol mapping
+
+[MarketDataRefreshService](../../market-data-service/src/main/java/com/wealth/market/MarketDataRefreshService.java)
+takes the tracked set from the shared catalog's **ACTIVE** entries, not every MongoDB document.
+The current catalog has 159 ACTIVE entries and one DEPRECATED entry. Catalog/provider symbols
+may differ: the Yahoo lookup uses the configured `providerSymbol`, then maps results back to
+the application's canonical ticker. Renaming a provider symbol does not rename a holding.
+
+The [Yahoo client](../../market-data-service/src/main/java/com/wealth/market/YahooFinanceExternalMarketDataClient.java)
+fetches sequential batches (default 50) and accumulates results before returning. If **any batch
+ultimately fails after the configured retries**, the complete fetch throws: even successful
+batches from that fetch are discarded, and the refresh writes/publishes none of their prices.
+The refresh catches this provider failure and returns normally with last-known data unchanged;
+therefore a successful Job exit does not prove prices updated. A missing ticker in a successful
+fetch is skipped, preserving its prior value/time. Per-ticker persistence failures are logged/
+counted and can also leave incomplete coverage.
+
+After Mongo writes, the refresh flushes and waits for all collected Kafka send futures. A send
+failure (or flush failure) propagates to the Job runner, which exits 1; the completed Mongo writes
+are **not rolled back**. Azure's Job sets `replica_retry_limit=0` (no Job-level retry), distinct from
+provider/producer internal retries. Always distinguish Job completion from price coverage and
+downstream convergence.
+
+For a previously absent ticker the refresh constructs `AssetPrice(ticker, null)` and does not
+assign a quote currency. Its new Mongo document/event therefore has null `quoteCurrency`;
+existing documents retain their currency. Catalog-derived currency in downstream views is not
+evidence that the refresh populated this Mongo field.
+
+### Azure: separate Container Apps Job
+
+[Azure Terraform](../../infrastructure/terraform/azure/main.tf) defines
+`market-data-refresh-job` with a **five-field `0 8 * * *` schedule (08:00 UTC)**.
+It runs the market image with `prod,azure`, no web application, and
+`MARKET_DATA_JOB_RUNNER_ENABLED=true`.
+[MarketDataRefreshJobRunner](../../market-data-service/src/main/java/com/wealth/market/MarketDataRefreshJobRunner.java)
+invokes one refresh, flushes available tracing, then exits.
+
+The API Container App's [Azure profile](../../market-data-service/src/main/resources/application-azure.yml)
+sets `market-data.refresh.enabled=false`; its retained Spring cron text is **inactive**.
+The Job, not an in-app daily timer in a scale-to-zero API replica, is the Azure refresh path.
+
+### Local / retained AWS
+
+[MarketDataRefreshJob](../../market-data-service/src/main/java/com/wealth/market/MarketDataRefreshJob.java)
+is the conditional Spring `@Scheduled` adapter, with hourly default cron when enabled.
+The AWS overlay disables this adapter. Retaining AWS configuration does not establish a working
+scheduled AWS refresh or authorize reactivation.
+
+## 5. Seeding and startup: separate from real market observations
+
+The separate manual-only Azure `market-data-repair-job` selects
+[MarketDataRepairJobRunner](../../market-data-service/src/main/java/com/wealth/market/MarketDataRepairJobRunner.java)
+for the fenced legacy `MM.NS` to `M&M.NS` Mongo repair. It enables repair, omits the refresh-runner
+property, has one replica/completion, a 300-second timeout and no Job retry. It does not implement
+automatic cold-start repair or grant authority to run it; source wiring is not a new repair result.
+
+- [LocalMarketDataSeeder](../../market-data-service/src/main/java/com/wealth/market/LocalMarketDataSeeder.java)
+  is `@Profile("local")` and checks `market.seed.enabled`; it reads the local fixture and
+  backfills missing tickers through the price-write service.
+- [MarketDataSeedService](../../market-data-service/src/main/java/com/wealth/market/seed/MarketDataSeedService.java)
+  is a conditional internal golden-state operation. It writes deterministic active-catalog
+  prices and sends synthetic prior/current observations. These are **test data**, not Yahoo
+  market history. The Azure overlay disables `market-data.seed.enabled`.
+- The earlier guides named `BaselineSeeder` and `StartupHydrationService`. Neither class exists
+  in this source tree; leftover configuration/comments do not implement automatic cold-start
+  republishing. Do not rely on an API wake to rehydrate all projections.
+
+Seed, manual override, repair and refresh dispatch are operational writes. This guide authorizes
+none of them; use the separately reviewed [operations guidance](../runbooks/CURRENT_OPERATIONS.md).
+
+## 6. Data-flow split
+
 ```mermaid
-graph LR
-    A[Browser: usePortfolio Hook] -->|"absolute: http://127.0.0.1:8080/api/market/prices"| C[Spring Cloud Gateway :8080]
-    C -->|"/api/market/** → :8082"| D[Market Data Service]
+flowchart LR
+    B[Browser] --> G[Gateway]
+    G --> Q[Price controller: stored-data GET]
+    Q --> M[(MongoDB market_prices)]
+    J[Azure daily Job] --> F[Refresh: active catalog and provider symbols]
+    Y[Yahoo provider] --> F
+    F --> M
+    F --> K[Kafka market-prices]
+    W[Manual/local/internal write paths] --> M
+    W --> K
+    K --> P[Portfolio PostgreSQL projection]
+    K --> I[Insight Redis projection]
 ```
 
-### Production (Azure)
-```mermaid
-graph LR
-    A[Browser: usePortfolio Hook on Azure SWA] -->|"absolute: https://api.vibhanshu-ai-portfolio.dev/api/market/prices"| C[api-gateway Container App]
-    C -->|"/api/market/** → http://market-data-service"| D[market-data-service Container App: internal ingress]
+## 7. Deployment and freshness boundary
 
-    subgraph "Market Data Service"
-        D1[MarketPriceController]
-        D2[MarketPriceService]
-        D3[MarketDataRefreshJob: daily on Azure]
+Azure API profiles are `prod,azure`, with internal ingress and scale-to-zero; managed dependencies
+are MongoDB Atlas and Aiven Kafka. A cold API replica delays reads; it does not trigger a fresh
+provider price or establish consumer catch-up. The Mongo health configuration uses a database
+ping, not complete business-flow verification.
 
-        D1 --> D2
-        D3 --> D2
-        D2 -->|Write| E[(MongoDB Atlas)]
-        D2 -->|Publish| F[[Aiven Kafka: market-prices]]
-    end
-
-    D3 -.->|HTTP + Resilience4j| Y[Yahoo Finance]
-    F -.->|Consume| G[Portfolio Service]
-    F -.->|Consume| H[Insight Service]
-```
-
-## 8. Production Deployment Topology
-
-### Azure — Active (Live)
-The `market-data-service` is built as a container image (ACR) and deployed as an **Azure Container App** with **internal ingress**. Provisioned by `infrastructure/terraform/azure` (`module.market_data_service`):
-
-- **Profiles:** `SPRING_PROFILES_ACTIVE=prod,azure`.
-- **Managed MongoDB:** `SPRING_MONGODB_URI` points at **MongoDB Atlas**; TLS uses the canonical `truststore.jks` from `common-dto` via `TruststoreExtractor`.
-- **Managed Kafka:** producer connects to **Aiven Kafka** over mTLS using the same canonical truststore.
-- **Scheduled refresh:** enabled (long-lived containers), throttled to a daily cron on the Azure overlay (see §7).
-- **Scaling:** `min_replicas = 0` (scale-to-zero), `max_replicas = 3`.
-
-### AWS — Soft-Disabled Standby
-- Packaged as a container image and deployed as **AWS Lambda on arm64 / Graviton2** via the **Lambda Web Adapter** (`live` alias, `Function URL` `AuthType = NONE`, fronted only via CloudFront → api-gateway with `X-Origin-Verify`).
-- **LWA readiness override:** `AWS_LWA_READINESS_CHECK_PATH = /actuator/health/liveness` bypasses the Spring `MongoHealthIndicator`, which otherwise fails LWA's readiness probe against Atlas free-tier (`AtlasError 8000`).
-- Scheduled refresh **disabled** (Lambda is short-lived); `reserved_concurrent_executions` omitted (ap-south-1 cap); cold-start mitigation via the `warming` module when enabled.
+Portfolio freshness uses its own configurable 50-hour default and observation time; Redis bulk
+summary inclusion uses a separate 24-hour received-update window. Neither promises prices will
+never exceed 24 hours old. The operator warm-up keeps services awake for a bounded demo session,
+not indefinitely, and does not replace scheduled refresh.

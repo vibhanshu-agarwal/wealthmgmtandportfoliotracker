@@ -1,14 +1,39 @@
 # Asset Picker — E2E Master Plan to Production
 
+**Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
+[E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are
+audited against source at `main@8aa4035b`. The architecture index distinguishes 6 current
+references, 8 historical records and 1 formerly empty placeholder. They distinguish browser
+requests, service writes, refresh jobs and event projections; this is documentation
+correction, not new operational proof or Spec A/B1/B2 completion. An unmerged branch copy is
+a candidate; filing requires independent review and owner-authorized publication, and occurs
+only when the carrying PR merges into main. Runtime/demo acceptance remains governed by the
+[demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) and is unchanged by this audit.
+The review follow-up records the source-confirmed
+[advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
+Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
+not cover it. The architecture review also confirmed the subsequently fixed
+[public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
+Price-write closure is separate from the earlier demo suite: reviewed removal `83607f5d` merged through
+[#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327) at `9c733f6d`,
+with an identical tree and heavy PR CI green. Owner-authorized scoped deploy 36259687567 succeeded
+on market-data revision `--0000082` / image `sha256:48a649c0…9881`; one owner-run Gate D probe
+returned `REMOVED`, exit 0, with AAPL reads OK on 2026-09-26 UTC. The price-write defect is CLOSED
+within that route-removal scope, based on saved deploy logs and terminal-output transcription,
+not a new Codex live/Azure/database read. Optional historical-data audit Gate E stays open and
+requires separate design/approval; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
+broader header coverage remains OPEN. Documentation filing remains separate from code publication.
+No application code or live operation is authorized by this documentation update.
+
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and
-[enhancements v5](../../roadmap_enhancements_v5.md) are prepared against `main@5d559478`.
+[enhancements v5](../../roadmap_enhancements_v5.md) were reconciled against `main@5d559478`
+and are filed through merged #326 (`8aa4035b`).
 They distinguish delivered picker/analytics capabilities from open residuals and three deferred
 owner requests: per-user Sharpe/Sortino, richer FA/TA chat and additional charts. v1–v4 remain
 historical snapshots. No feature implementation, new operational proof or Spec A/B1/B2 task
-completion is claimed. Filing requires independent review and owner-authorized publication/
-merge; an unmerged copy is a candidate. Runtime/demo acceptance remains governed by the
-demo dashboard; this documentation candidate does not advance it.
+completion is claimed. This documentation filing does not advance runtime/demo acceptance.
 
 **Runbook process reconciliation — 2026-09-26 UTC:** the
 [runbook index](../runbooks/README.md) classifies all 24 existing runbooks; the 2 reusable
@@ -17,7 +42,7 @@ remain unchanged. [Current operations](../runbooks/CURRENT_OPERATIONS.md) record
 demo startup and restart boundaries. No new operational proof or Spec A/B1/B2 completion is
 claimed. This independently reviewed reconciliation is filed through #325 (`5d559478`).
 The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains current acceptance and the
-remaining freeze work; the roadmap/README/v5 filing is separate.
+remaining freeze work; the service-flow documentation reconciliation is separate.
 
 **Backlog process reconciliation — 2026-09-26 UTC:** the
 [backlog index](../todos/backlog/README.md) records 8 fixed/completed closures, 2 superseded
@@ -27,6 +52,10 @@ historical proof is changed. Current runtime/demo status is governed by the
 post-#320 suite/cleanup result. Older baseline paragraphs below retain their historical dates;
 they are not fresh serving-state assertions. The backlog index records the independent review;
 the audit is filed through #324 (`6f1e5700`).
+The later flow/architecture review adds three OPEN security/coverage entries against `main@8aa4035b`,
+initially bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
+The later separately recorded price-write closure brings current totals to 9 fixed/completed,
+2 superseded and 22 OPEN across those same 33 directories.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted
