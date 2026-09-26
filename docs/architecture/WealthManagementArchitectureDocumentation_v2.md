@@ -98,12 +98,15 @@ and the default points to localhost:8081; absent another override it is expected
 is not live-verified or a security control. Compose/AWS source supplies the URL. No exploit was
 tested by this audit; the OPEN finding has no owner non-blocking waiver.
 
-Reviewed local commits `435f61c6` and `35779e2e` remove that route and its controller service
-injection, with no alias. The analysis implementation remains, but no other production HTTP
+Reviewed commits `435f61c6` and `35779e2e`, merged through
+[#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at `6a82f3da`,
+remove that route and its controller service injection, with no alias. The analysis implementation
+remains, but no other production HTTP
 handler calls it. Any future exposure must use the gateway-authenticated subject. Saved local
 RED/GREEN evidence and reported re-exposure mutants support source remediation, not a deployed
-security claim. Publication, scoped insight-service deployment and artifact-bound live validation
-remain pending under owner approval; the linked backlog item stays OPEN.
+security claim. Code publication/merge are complete; scoped insight-service deployment and
+artifact-bound live validation remain pending under owner approval. The linked backlog item stays
+OPEN; the merge is not evidence that the deployed route is absent.
 
 ## 4. Holdings, valuation and analytics
 
