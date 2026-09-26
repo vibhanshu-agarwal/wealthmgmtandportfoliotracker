@@ -1,121 +1,179 @@
-# Portfolio Service End-to-End (E2E) Flow
+# Portfolio Service End-to-End Flow
 
-This document describes the flow of data and control for the `portfolio-service` in the Wealth Management and Portfolio Tracker application, starting from the frontend.
+**Source audit:** 2026-09-26 UTC against `main@8aa4035b`. This guide describes source behavior,
+not a new database read or live suite. The [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md)
+retains the accepted `PASS_WITH_EXPECTED_DEFECTS` verdict and its evidence limitations.
 
-> **Deployment context (June 2026):** Multi-cloud via Terraform, with **Azure active (live)** and **AWS a soft-disabled standby**. See `README.md`.
+## 1. Session-gated browser reads
 
-## 1. Frontend Layer (Next.js)
-The flow begins in the **Portfolio Page** (`frontend/src/app/(dashboard)/portfolio/page.tsx`), the primary dashboard for viewing holdings and performance.
+[PortfolioPageContent](../../frontend/src/components/portfolio/PortfolioPageContent.tsx) composes
+summary, performance, allocation, holdings, freshness and feature-flagged edit/reset controls.
+[usePortfolio](../../frontend/src/lib/hooks/usePortfolio.ts) scopes portfolio/summary/analytics
+query keys by authenticated user. The frontend is statically exported and calls the configured
+gateway origin through `apiPath`; there is no Next.js API proxy.
 
-*   **`PortfolioPageContent`**: A client component that gates data components behind a confirmed session. It composes:
-    *   **`SummaryCards`**: high-level metrics (Total Value, Unrealized P&L, 24h Change).
-    *   **`PerformanceChart`**: historical portfolio performance.
-    *   **`AllocationChart`**: asset-class distribution.
-    *   **`HoldingsTable`**: per-holding detail (quantity, price, value, P&L, 24h change).
+[portfolio.ts](../../frontend/src/lib/api/portfolio.ts) selects the caller's portfolio, preserves
+string quantities, and enriches holdings using stored Mongo prices in 25-ticker batches.
+The compatibility adapter accepts legacy numeric quantities but flags their fidelity as
+unverified. Empty lists represent no portfolio; ambiguous/nonmatching nonempty lists raise a
+contract error rather than silently choosing someone else's portfolio.
 
-### Frontend Hooks & API Clients
-*   **`usePortfolio`**: fetches holdings via `fetchPortfolio` (`frontend/src/lib/api/portfolio.ts`), combining `portfolio-service` data with `market-data-service` prices client-side.
-*   **`usePortfolioAnalytics`**: fetches pre-computed analytics from `GET /api/portfolio/analytics`.
-*   **`usePortfolioSummary`**: fetches a lightweight summary from `GET /api/portfolio/summary`.
+Analytics and summary are separate PostgreSQL-based reads. UI query invalidation is not the
+same thing as eviction of the backend analytics cache, and Mongo prices may temporarily differ
+from the PostgreSQL projection.
 
-## 2. API Call & Routing
+## 2. Endpoints and trust boundary
 
-> **Note:** `next.config.ts` is configured for static export (`output: "export"`). It contains **no rewrite or proxy rules** — there is no Next.js proxy layer.
+The gateway validates the JWT and overwrites `X-User-Id`. Ordinary portfolio endpoints use that
+header, not a caller-selected portfolio/user ID. Downstream service access must remain behind
+the trusted gateway/network boundary; the header alone is not cryptographic authentication.
+Base JVM target is localhost:8081, Compose uses `portfolio-service:8081`, and Azure uses the
+internal ACA name at ingress port 80, forwarded to service port 8080.
 
-### Path Construction (`frontend/src/lib/config/api.ts`)
-All API calls go through `apiPath()`, which inspects `NEXT_PUBLIC_API_BASE_URL` (embedded at build time):
-*   **Set** (both local and Azure production): returns an **absolute URL**.
-    *   Local: `http://127.0.0.1:8080/api/portfolio`
-    *   Azure: `https://api.vibhanshu-ai-portfolio.dev/api/portfolio`
-*   **Unset** (fallback only): returns a relative `/api/*` path. Not used by the supported environments.
+| Method / path | Handler and current purpose |
+|---|---|
+| `GET /api/portfolio` | `PortfolioController`: list the caller's portfolios, including version and holdings |
+| `PUT /api/portfolio/holdings` | `CompositionController`: replace the caller's complete desired holdings set |
+| `GET /api/assets` | `AssetCatalogController`: catalog metadata/lifecycle, version/ETag and conditional 304 |
+| `GET /api/portfolio/summary` | `PortfolioSummaryController`: total value, coverage and freshness |
+| `GET /api/portfolio/analytics` | `PortfolioAnalyticsController`: valuations, P&L, change and performance |
+| `GET /api/portfolio/fx-rates?currencies=INR,JPY` | `FxRatesController`: display-estimate conversion rates into the base currency |
+| `PUT /api/portfolio/demo-reset` | Gateway-authorized public reset bridge; not a generic user reset |
+| `GET /api/portfolio/health` | Service-UP handler; not a complete database/valuation check |
 
-### Local Development
-`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` (in `frontend/.env.local`). The browser hits the Spring Cloud Gateway directly on port 8080.
+There is no public PortfolioController POST that creates portfolios or incrementally adds
+holdings. Gateway signup transactionally creates an empty portfolio. The composition operation
+also has an explicitly versioned no-portfolio creation case.
 
-### Production (Azure)
-`NEXT_PUBLIC_API_BASE_URL=https://api.vibhanshu-ai-portfolio.dev` is injected by `deploy-azure.yml`. The static frontend is hosted on **Azure Static Web Apps**; the browser calls the **api-gateway Container App** directly via the `api.` subdomain.
+Sources: [controllers](../../portfolio-service/src/main/java/com/wealth/portfolio/PortfolioController.java),
+[composition](../../portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionController.java),
+[catalog](../../portfolio-service/src/main/java/com/wealth/portfolio/AssetCatalogController.java),
+[FX rates](../../portfolio-service/src/main/java/com/wealth/portfolio/FxRatesController.java).
 
-### Spring Cloud Gateway → Portfolio Service
-The gateway routes based on path predicates (targets are env-driven `${app.routes.*-url}`):
-*   `/api/portfolio/**` → `PORTFOLIO_SERVICE_URL` (`http://localhost:8081` local / `http://portfolio-service` ACA internal DNS)
-*   `/api/market/**` → `MARKET_DATA_SERVICE_URL`
-*   `/api/insights/**` and `/api/chat/**` → `INSIGHT_SERVICE_URL`
+## 3. Edit Holdings: exact desired state, version and persistence
 
-**Authentication:** the gateway validates the HS256 JWT and injects the `X-User-Id` header into every downstream request.
+The [save adapter](../../frontend/src/lib/api/assetPickerSave.ts) sends
+`{expectedVersion, holdings: [{ticker, quantity}]}` to the composition PUT.
+Quantities are decimal **strings** on the write wire, not floating-point JSON numbers.
+Removing a ticker from the desired set removes that holding; an empty set is an empty portfolio.
+Canceling the draft sends no composition write.
 
-## 3. Portfolio Service Controllers
-*   **`PortfolioController`**: `/api/portfolio` (GET/POST) — retrieve/create portfolios, add/update holdings.
-*   **`PortfolioAnalyticsController`**: `/api/portfolio/analytics` (GET) — unrealized P&L and historical performance points.
-*   **`PortfolioSummaryController`**: `/api/portfolio/summary` (GET) — lightweight total value and holdings count.
+[CompositionWriteService](../../portfolio-service/src/main/java/com/wealth/portfolio/composition/CompositionWriteService.java)
+uses the shared transactional
+[HoldingReplacementService](../../portfolio-service/src/main/java/com/wealth/portfolio/composition/HoldingReplacementService.java).
+It checks optimistic version, validates quantity/catalog/lifecycle rules and replaces holdings
+while preserving portfolio identity. Version conflict returns 409 with `currentVersion`;
+invalid intent returns a contract error without a partial save. No-portfolio creation requires
+`expectedVersion=0`; existing portfolios require their observed version. Responses are 200 for
+existing state or 201 for creation, with the persisted version and holdings.
+An identical complete tuple set is a no-op and retains the version; a real change advances it.
 
-## 4. Service Layer & Logic
-*   **`PortfolioService`**: Manages `Portfolio` and `AssetHolding` entities and computes the summary, performing FX conversion via an `FxRateProvider`.
-*   **`PortfolioAnalyticsService`**: Computes analytics in a single SQL round-trip (CTE + UNION ALL) for holdings, 24h-ago prices, and historical series; applies per-holding FX conversion and caches results per user.
+The [response DTO](../../portfolio-service/src/main/java/com/wealth/portfolio/PortfolioResponse.java)
+serializes quantities with the plain-string serializer. The frontend reconciles from that
+response and invalidates relevant reads; it does not declare the submitted draft to be truth
+before persistence succeeds. Conflict handling does not silently retry with a fresh version.
 
-## 5. Data Layer & Real-time Integration
-The service relies on a PostgreSQL database (Flyway-migrated) and real-time Kafka updates:
-*   **Postgres tables:**
-    *   `portfolios`: portfolio metadata.
-    *   `asset_holdings`: user holdings (ticker, quantity, cost basis).
-    *   `market_prices`: read-model of latest ticker prices (updated via Kafka).
-    *   `market_price_history`: historical price points for performance charting.
-*   **Kafka consumer:**
-    *   **`PriceUpdatedEventListener`**: consumes the `market-prices` topic (listener observation enabled for tracing).
-    *   **`MarketPriceProjectionService`**: idempotently upserts the latest price into `market_prices` (`INSERT ... ON CONFLICT ... IS DISTINCT FROM`), so duplicate deliveries are no-ops, and appends to `market_price_history` per new `(ticker, observed_at)`.
-    *   **Dead-Letter Topic:** `MalformedEventException` is registered as non-retryable on Spring Kafka's `DefaultErrorHandler`; poison records are routed to `market-prices.DLT` (key preserved) via `DeadLetterPublishingRecoverer`.
+New holdings use [add-time cost basis](../../portfolio-service/src/main/java/com/wealth/portfolio/composition/AddTimeCostBasisCapturer.java)
+from a positive stored price when available; otherwise basis is unavailable. This is a demo
+valuation anchor, not execution-price accounting or a transaction ledger.
 
-## 6. Currency Conversion (FX)
-*   **`FxRateProvider`**: interface for fetching exchange rates.
-*   **`EcbFxRateProvider`**: calls an external FX API (European Central Bank).
-*   **`FxProperties`**: configures the base currency for valuations.
+The gateway's `ro` filter explicitly exempts the exact holdings PUT and public demo-reset PUT.
+Do not describe the showcase's read-only claim as an absolute block on all portfolio writes.
+The [gateway guide](api-gateway-service-e2e.md) explains the additional reset authorization.
 
-## Summary Flow Diagram
+## 4. Analytics, chart and partial data
 
-### Local Development
+[PortfolioService](../../portfolio-service/src/main/java/com/wealth/portfolio/PortfolioService.java)
+computes summary/freshness from PostgreSQL latest-price rows.
+[PortfolioAnalyticsService](../../portfolio-service/src/main/java/com/wealth/portfolio/PortfolioAnalyticsService.java)
+uses a CTE/UNION query for holdings, reference prices and daily history, then applies FX:
+
+- Price/value/P&L fields can be null when prices, FX or cost basis are unavailable; unavailable
+  is not zero. Coverage and partial flags qualify aggregates.
+- Change uses a reference in the 18–36 hour tolerance window or a labelled older snapshot.
+  Stale latest observations are excluded from 24h totals and best/worst selection.
+- Daily history chooses the latest row **per ticker per UTC date**, preventing same-day
+  duplicates from multiplying value. The default history window is 50 days.
+- The series revalues **current quantities** against historical prices and the available current
+  FX map. It is not a cash-flow-adjusted, transaction-history or historical-FX return series.
+- Fewer than seven distinct history dates produces a backend synthetic series marked
+  `performanceCoverage.synthetic=true`; incomplete history has coverage metadata.
+  [PerformanceChart](../../frontend/src/components/charts/PerformanceChart.tsx) prefers analytics;
+  its separate client fallback also generates a display series. A visible chart alone is not
+  proof that real complete historical analytics were returned.
+
+The [analytics cache](../../portfolio-service/src/main/java/com/wealth/portfolio/CacheConfig.java)
+is per-user: Caffeine on Azure/local and Redis on AWS, with 30-second expiry. Immediate
+server-side eviction after a composition write is not established; the accepted cache-staleness
+finding remains open. Sharpe/Sortino analysis is deferred in
+[enhancements v5](../../roadmap_enhancements_v5.md), not an existing metric.
+
+[AssetPriceFreshness](../../portfolio-service/src/main/java/com/wealth/portfolio/freshness/AssetPriceFreshness.java)
+returns MISSING for absent price rows, UNKNOWN for absent observation time, and STALE only when
+age **exceeds** the configured threshold (default 50 hours). Exactly 50 hours is still fresh.
+Reading freshness does not fetch a new market price.
+
+## 5. FX conversion and Edit Holdings estimates
+
+Despite its name, [EcbFxRateProvider](../../portfolio-service/src/main/java/com/wealth/portfolio/fx/EcbFxRateProvider.java)
+uses the configured `open.er-api.com` USD-rate map on Azure/AWS, **not the ECB endpoint**.
+It derives cross-rates from a cached bulk response. The local profile uses `StaticFxRateProvider`.
+The Azure profile sets 06:00 cache eviction; the Spring scheduler has no explicit timezone.
+The next cache miss fetches rates; the shared cache also has 30-second expiry.
+
+Equal currencies use rate 1. On provider failure the fallback map is USD-only; an unresolved
+non-equal conversion raises `FxRateUnavailableException`, not a fabricated 1:1 rate.
+`/fx-rates` accepts at most 64 distinct requested codes and returns null for unresolved rates.
+The API has no provider rate timestamp. The dialog uses the same provider for display estimates;
+estimates are not trade execution prices. FX-pair holding semantics remain an open product
+question; unknown-currency and analytics-unavailable cases are not newly live-verified here.
+
+## 6. Kafka price projection
+
+[MarketPriceProjectionService](../../portfolio-service/src/main/java/com/wealth/portfolio/MarketPriceProjectionService.java)
+transactionally writes `market_prices` and `market_price_history`:
+
+- Latest tuples include price, quote currency and observation time; newer observations replace
+  older latest rows. Equal-time identical payloads are idempotent; conflicts are rejected.
+- History identity is `(ticker, observed_at)`, normalized to millisecond precision.
+  Duplicate identical history is ignored; conflicting payloads fail.
+- Undated legacy events do not fabricate an observation time or append dated history.
+- Catalog/currency validation gates unsupported events; malformed/rejected records are handled
+  through the Kafka error/DLT configuration. This is not a universal exactly-once guarantee.
+
+`PriceUpdatedEventListener` consumes `market-prices`; rejected poison records go to
+`market-prices.DLT`. PostgreSQL is the portfolio valuation projection, not a request-time Yahoo
+lookup. Event tracing is enabled, but delivery/lag is not rechecked by this document audit.
+
+## 7. Reset is a holdings operation, not market-history generation
+
+[DemoResetService](../../portfolio-service/src/main/java/com/wealth/portfolio/demo/DemoResetService.java)
+targets the fixed showcase identity with the shared versioned replacement primitive and
+golden-state tuples. It preserves portfolio identity and advances the version only if the tuple
+set changes (an already identical reset is a no-op). The public bridge
+requires that subject and route; the internal endpoint requires the internal API key.
+Login-triggered reset first observes eligibility and may skip; manual reset still uses the
+submitted version. Neither presence hints nor reset automatically authorize a rehearsal.
+
+Normal demo reset does not need to seed Mongo/Redis or append synthetic market-price history.
+Internal golden-state seeding is a distinct operational action and can write deterministic data;
+do not substitute it for a normal demo restore. See [current operations](../runbooks/CURRENT_OPERATIONS.md).
+
+## 8. Data-flow split and deployment
+
 ```mermaid
-graph LR
-    A[Browser: Portfolio Page] -->|"absolute: http://127.0.0.1:8080/api/portfolio/*"| C[Spring Cloud Gateway :8080]
-    C -->|"/api/portfolio/** → :8081"| D[Portfolio Service]
+flowchart LR
+    B[Portfolio UI / Edit Holdings] --> G[Gateway: JWT subject and reset gate]
+    G --> C[Read / composition / catalog / FX controllers]
+    C --> D[(PostgreSQL: portfolios, holdings, price projection/history)]
+    C --> F[FX provider and cache]
+    K[Kafka market-prices] --> P[Validated price projection]
+    P --> D
+    C --> A[Per-user analytics cache]
 ```
 
-### Production (Azure)
-```mermaid
-graph LR
-    A[Browser: Portfolio Page on Azure SWA] -->|"absolute: https://api.vibhanshu-ai-portfolio.dev/api/portfolio/*"| C[api-gateway Container App]
-    C -->|"/api/portfolio/** → http://portfolio-service"| D[portfolio-service Container App: internal ingress]
-
-    subgraph "Portfolio Service"
-        D1[Controllers: Portfolio, Analytics, Summary]
-        D2[Services: PortfolioService, AnalyticsService]
-        D3[MarketPriceProjectionService]
-        D4[PriceUpdatedEventListener]
-        D5[FxRateProvider]
-
-        D1 --> D2
-        D2 --> D5
-        D4 -->|Updates| D3
-        D3 -->|Writes| E[(Neon PostgreSQL)]
-        D2 <-->|Read/Write| E
-    end
-
-    D4 <-->|Listen| F[[Aiven Kafka: market-prices]]
-    D4 -.->|Poison records| DLT[[market-prices.DLT]]
-    D5 -.->|REST| G[External FX API: ECB]
-```
-
-## 7. Production Deployment Topology
-
-### Azure — Active (Live)
-The `portfolio-service` is built as a container image (ACR) and deployed as an **Azure Container App** with **internal ingress**. Provisioned by `infrastructure/terraform/azure` (`module.portfolio_service`):
-
-- **Profiles:** `SPRING_PROFILES_ACTIVE=prod,azure`.
-- **Managed Postgres:** persists to **Neon PostgreSQL**; JDBC TLS uses the canonical `truststore.jks` from `common-dto` via `TruststoreExtractor`. Flyway migrations run on startup.
-- **Managed Kafka:** consumer connects to **Aiven Kafka** over mTLS using the same canonical truststore; the DLT (`market-prices.DLT`) lives on the same broker.
-- **Scaling:** `min_replicas = 0` (scale-to-zero), `max_replicas = 3`.
-- **`insight-service` callback:** `insight-service` calls back to portfolio-service for portfolio context via the ACA internal DNS name (`http://portfolio-service`).
-
-### AWS — Soft-Disabled Standby
-- Packaged as a container image and deployed as **AWS Lambda on arm64 / Graviton2** via the **Lambda Web Adapter** (`live` alias, `Function URL` `AuthType = NONE`, fronted only via CloudFront → api-gateway with `X-Origin-Verify`).
-- **Managed Postgres:** `SPRING_DATASOURCE_URL` points at the external managed Postgres (RDS is outside the free-tier budget).
-- **Managed Kafka:** Aiven Kafka over mTLS; DLT on the same broker.
-- `reserved_concurrent_executions` omitted (ap-south-1 cap); cold-start mitigation via the `warming` module when enabled.
+Azure profiles are `prod,azure`; Flyway migrations run on startup and the service has internal
+ingress and scale-to-zero. Source defines Neon PostgreSQL and Aiven Kafka integration. The
+retained AWS Lambda configuration is restart context, not a newly verified standby deployment.
+The advisor callback from insight-service is a separate source path, not proof that the browser
+chat offers full portfolio analysis.

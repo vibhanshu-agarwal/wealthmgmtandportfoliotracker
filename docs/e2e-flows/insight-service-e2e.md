@@ -1,103 +1,162 @@
-# Insight Service End-to-End (E2E) Flow
+# Insight Service End-to-End Flow
 
-This document describes the flow of data and control for the `insight-service` in the Wealth Management and Portfolio Tracker application, starting from the frontend.
+**Source audit:** 2026-09-26 UTC against `main@8aa4035b`. This is source reconciliation, not
+a fresh Azure OpenAI call, cache read or endpoint test. The
+[demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains accepted evidence and
+unverified edges, including natural-language resolution and broader model-text reliability.
 
-> **Deployment context (June 2026):** Multi-cloud via Terraform, with **Azure active (live)** and **AWS a soft-disabled standby**. Production AI runs on **Azure OpenAI**; Amazon Bedrock is the standby path. See `README.md`.
+## 1. Browser entry and distinct requests
 
-## 1. Frontend Layer (Next.js)
-The flow begins in the **AI Insights Page** (`frontend/src/app/(dashboard)/ai-insights/page.tsx`), where users view market summaries and interact with an AI-powered chat.
+The AI Insights page combines `MarketSummaryGrid` and `ChatInterface`.
+[useInsights](../../frontend/src/lib/hooks/useInsights.ts) and
+[insights.ts](../../frontend/src/lib/api/insights.ts) call the static frontend's configured gateway
+origin. There is no Next.js server proxy. The gateway routes `/api/insights/**` and `/api/chat/**`
+to `INSIGHT_SERVICE_URL`: base localhost:8083, Compose `insight-service:8083`, or Azure internal
+`http://insight-service` (ingress forwards to port 8080). JWT and rate-limit rules are in the
+[gateway flow](api-gateway-service-e2e.md).
 
-*   **`MarketSummaryGrid`**: A client component using the TanStack Query hook `useMarketSummary` to fetch a map of tracked tickers.
-*   **`ChatInterface`**: A conversational UI that lets users ask about specific tickers or their portfolio.
+[InsightController](../../insight-service/src/main/java/com/wealth/insight/InsightController.java)
+and [ChatController](../../insight-service/src/main/java/com/wealth/insight/ChatController.java)
+serve different pipelines:
 
-## 2. API Call & Routing
+| Method / path | Behavior |
+|---|---|
+| `GET /api/insights/market-summary` | Redis-backed bulk price/trend map with catalog quote currency; **no per-ticker AI sentiment calls** |
+| `GET /api/insights/market-summary/{ticker}` | One stored ticker summary plus sentiment from the active adapter; no price yields 404; adapter unavailability leaves sentiment absent |
+| `POST /api/chat` | Stateless asset-resolution turn, then stored facts and optional sentiment |
+| `GET /api/insights/{userId}/analyze` | Separate advisor path fetching portfolio holdings; not the current chat's portfolio-context pipeline |
+| `GET /api/insights/health` | Public service-UP handler, not a successful model or Redis acceptance test |
 
-> **Note:** `next.config.ts` is configured for static export (`output: "export"`). It contains **no rewrite or proxy rules** — there is no Next.js proxy layer.
+The bulk cards' “Sentiment Unavailable” is expected when that endpoint supplies no sentiment;
+it is not, by itself, evidence that Azure OpenAI failed.
 
-### Path Construction (`frontend/src/lib/config/api.ts`)
-All API calls go through `apiPath()`, which inspects `NEXT_PUBLIC_API_BASE_URL` (embedded at build time):
-*   **Set** (both local and Azure production): returns an **absolute URL**.
-    *   Local: `http://127.0.0.1:8080/api/insights/market-summary`
-    *   Azure: `https://api.vibhanshu-ai-portfolio.dev/api/insights/market-summary`
-*   **Unset** (fallback only): returns a relative `/api/*` path. Not used by the supported environments.
+## 2. Redis market projection, not live Yahoo fetch
 
-### Local Development
-`NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080` (in `frontend/.env.local`). The browser hits the Spring Cloud Gateway directly on port 8080 — no intermediary proxy.
+[InsightEventListener](../../insight-service/src/main/java/com/wealth/insight/InsightEventListener.java)
+consumes Kafka `market-prices`.
+[MarketDataService](../../insight-service/src/main/java/com/wealth/insight/MarketDataService.java)
+maintains:
 
-### Production (Azure)
-`NEXT_PUBLIC_API_BASE_URL=https://api.vibhanshu-ai-portfolio.dev` is injected by `deploy-azure.yml` at build time. The frontend is a static export hosted on **Azure Static Web Apps**; the browser calls the **api-gateway Container App** directly via the `api.` subdomain (separate from the SWA frontend domain). There is no CloudFront and no same-origin relative routing on Azure.
+| Redis key | Purpose |
+|---|---|
+| `market:latest:{ticker}` | Latest received price |
+| `market:obs:{ticker}` | Sorted set of observation timestamp identities, capped at 10 |
+| `market:obs:price:{ticker}` | Hash mapping those timestamps to price strings |
+| `market:tracked-tickers` | Sorted set scored by update **receipt time**, used for bulk inclusion |
+| `market:history:{ticker}` | Legacy last-10-price list retained for compatibility |
 
-### Spring Cloud Gateway → Insight Service
-The gateway routes based on path predicates (targets are env-driven `${app.routes.insight-url}` → `INSIGHT_SERVICE_URL`):
-*   `/api/insights/**` → `INSIGHT_SERVICE_URL` (`http://localhost:8083` local / `http://insight-service` ACA internal DNS)
-*   `/api/chat/**` → same target
+Observation identity is the ticker plus millisecond-truncated `observedAt`, not the price.
+A replay does not add another observation; a new timestamp at the same price is distinct.
+Undated events update latest/legacy structures but do not invent dated observations.
+The latest key, observation structures and tracked set are separate Redis commands, **not**
+one atomic snapshot or an exactly-once/monotonic-latest guarantee.
 
-**Authentication:** the gateway validates the HS256 JWT and injects the `X-User-Id` header into every downstream request.
+Trend requires at least two distinct observations and usable prices. It is first-to-last change
+over the stored window (at most 10 prices), **not a 24-hour return**. Legacy-only history has no
+distinct-observation guarantee and yields null trend. The cards label the actual window.
 
-## 3. Insight Service Controllers
-*   **`InsightController`**: Handles `/api/insights/market-summary` — retrieves market data and enriches it with AI-generated sentiment.
-*   **`ChatController`**: Handles `/api/chat` — delegates to the LLM-grounded resolution pipeline (`ChatResolutionService`) that resolves natural-language asset names to canonical tickers, fetches current prices, and generates a conversational response.
+Bulk summaries filter tracked entries using a 24-hour received-update window on read; old entries
+are also pruned on writes. That is not the portfolio's 50-hour observation-age rule. A direct
+single-ticker read is not subject to the same bulk inclusion filter. Separate Mongo/PostgreSQL/
+Redis views can lag each other; no browser request refreshes Yahoo data.
 
-## 4. Data Layer & Real-time Integration (Redis & Kafka)
-The `insight-service` maintains its own low-latency view of market data:
-*   **Redis Storage:** `MarketDataService` manages `market:latest:{ticker}` (current price) and `market:history:{ticker}` (recent prices) in Redis.
-*   **Kafka Listener:** `InsightEventListener` consumes the `market-prices` topic; each `PriceUpdatedEvent` updates the Redis cache. Listener observation is enabled for distributed tracing.
+## 3. Stateless chat resolution and response building
 
-## 5. AI Enrichment (`AiInsightService`)
-`AiInsightService` is an interface with three profile-scoped adapters:
-*   **`MockAiInsightService`** — `@Profile("!bedrock & !azure-ai")`: the default for **local development and CI**. Zero-latency deterministic responses, no cloud LLM required.
-*   **`AzureOpenAiInsightService`** — `@Profile("azure-ai")`: **active in production** (Azure). Uses Azure OpenAI (`gpt-4o-mini` deployment) via the consolidated Spring AI `spring-ai-starter-model-openai` starter, authenticated with **Entra ID / Managed Identity** (no API key).
-*   **`BedrockAiInsightService`** — `@Profile("bedrock")`: the AWS standby path (Amazon Bedrock, Anthropic Claude Haiku); also usable for opt-in local smoke tests (`local,bedrock`).
+The request is `{message, ticker?}`; the response is
+`{response, sentimentSource}`.
+[ChatResolutionService](../../insight-service/src/main/java/com/wealth/insight/ChatResolutionService.java)
+uses:
 
-## 6. Portfolio Analysis (Downstream REST Call)
-For portfolio-level analysis (e.g. `/api/insights/{userId}/analyze`):
-*   **`InsightService`**: Fetches the user's holdings from `portfolio-service` via REST (`PORTFOLIO_SERVICE_URL`).
-*   **`InsightAdvisor`**: Generates risk and diversification advice from the portfolio data.
+1. Optional explicit ticker normalization and catalog validation.
+2. Deterministic token normalization, comparison guard and discovery shortcuts.
+3. When needed, an `AssetResolutionClient` model call; proposed symbols are checked against
+   the catalog. Invented symbols are not accepted as facts.
+4. On resolution-model failure, deterministic exact/catalog-derived forms only; arbitrary
+   names do not become guessed tickers. Ambiguity leads to clarification.
+5. [ChatResponseBuilder](../../insight-service/src/main/java/com/wealth/insight/chat/ChatResponseBuilder.java)
+   handles resolved/no-data, clarification, discovery, comparison redirect and greeting outcomes.
 
-## Summary Flow Diagram
+A resolved turn gets numeric price/trend facts from Redis. Currency comes from the catalog;
+FOREX is presented with pair context, not an indiscriminate dollar prefix. The model contributes
+sentiment prose, not the structured numeric fact fields. The service remains one-asset-at-a-time;
+comparison requests redirect rather than performing comparative FA/TA.
 
-### Local Development
+The pipeline can make a resolution call **and** a separate sentiment call; deterministic resolution
+or cached sentiment can avoid those calls. Browser transcript display does not mean the backend
+has conversation memory, portfolio context or a multi-turn reasoning session.
+
+## 4. Adapter attribution, caching and failures
+
+`AiInsightService`, `AssetResolutionClient` and `InsightAdvisor` have separate profile adapters:
+
+- No `bedrock`/`azure-ai`: deterministic local/CI adapters, without a cloud LLM.
+- `azure-ai`: Azure OpenAI adapters, with Managed Identity/Entra configuration in the demo stack.
+- `bedrock`: retained AWS Bedrock adapters; enabling them is not part of this audit.
+
+[AzureOpenAiInsightService](../../insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightService.java)
+caches sentiment under a provider-qualified key such as `AZURE_OPENAI:{ticker}`.
+[CacheConfig](../../insight-service/src/main/java/com/wealth/insight/infrastructure/redis/CacheConfig.java)
+sets sentiment TTL to 60 minutes and portfolio-analysis TTL to 30 minutes. Cache-abstraction
+errors are treated as misses; this does not make the underlying Redis market-data reads immune
+to failure. A miss can incur model latency and cost.
+
+[SentimentSource](../../insight-service/src/main/java/com/wealth/insight/SentimentSource.java)
+declares `AZURE_OPENAI`, `BEDROCK` or `RULE_BASED`; responses without sentiment have null source.
+The UI renders source wording from this field rather than guessing from prose. It attributes
+the sentiment implementation, **not** the asset resolver. An Azure-labelled response may be
+cached; it does not prove this request invoked the model or that its prose is correct.
+
+Resolution fallback and sentiment unavailability are distinct: in the Azure sentiment adapter,
+provider failure raises `AdvisorUnavailableException`; the response builder keeps stored facts
+and adds an unavailable note. It does not silently switch the Azure adapter to the rule-based
+profile. Rule-based source denotes the deterministic adapter.
+
+## 5. Separate portfolio advisor path and limits
+
+[InsightService](../../insight-service/src/main/java/com/wealth/insight/InsightService.java) calls
+`GET /api/portfolio` at its configured portfolio-service URL, setting `X-User-Id` from the
+`/{userId}/analyze` path argument, and delegates the first returned portfolio to `InsightAdvisor`.
+It does not feed that result into `POST /api/chat`.
+
+This source path does not itself compare the path user ID with the authenticated gateway subject.
+Do not describe it as proven caller-owned portfolio isolation: that requires its own security
+review and acceptance evidence. This audit does not run or expand the demo to that path.
+
+Formal per-user Sharpe/Sortino metrics, richer FA/TA conversation and exploratory analysis are
+[deferred v5 requests](../../roadmap_enhancements_v5.md). Source availability of an advisor or a
+name resolver is not acceptance of those future capabilities or all natural-language/model edges.
+
+## 6. Request and event flow
+
 ```mermaid
-graph LR
-    A[Browser: AI Insights Page] -->|"absolute: http://127.0.0.1:8080/api/insights/*"| C[Spring Cloud Gateway :8080]
-    C -->|"/api/insights/** , /api/chat/** → :8083"| D[Insight Service]
+flowchart TD
+    B[AI Insights browser] --> G[Gateway]
+    G --> S[Bulk summary: no AI calls]
+    G --> C[Chat resolution]
+    G --> T[Single ticker summary]
+    S --> R[(Redis market facts)]
+    C --> V[Catalog validation and response builder]
+    V --> R
+    V --> A[Optional sentiment adapter / cache]
+    T --> R
+    T --> A
+    C -.-> L[Optional asset-resolution model call]
+    A -.-> O[Azure OpenAI or retained Bedrock adapter]
+    K[Kafka market-prices] --> E[Insight event listener]
+    E --> R
+    G --> P[Separate portfolio advisor endpoint]
+    P --> H[Portfolio-service holdings then InsightAdvisor]
 ```
 
-### Production (Azure)
-```mermaid
-graph LR
-    A[Browser: AI Insights Page on Azure SWA] -->|"absolute: https://api.vibhanshu-ai-portfolio.dev/api/insights/* , /api/chat"| C[api-gateway Container App]
-    C -->|"/api/insights/** , /api/chat/** → http://insight-service"| D[insight-service Container App: internal ingress]
+## 7. Deployment and evidence boundary
 
-    subgraph "Insight Service"
-        D1[InsightController / ChatController]
-        D2[MarketDataService]
-        D3[AzureOpenAiInsightService]
-        D4[InsightEventListener]
+Azure profiles are `prod,azure,azure-ai`, with internal ingress and scale-to-zero. Terraform
+configures Azure OpenAI access for the managed identity plus Aiven Kafka and Upstash Redis.
+Internal ACA reachability is not limited to the gateway alone: authorized peer services and Jobs
+share the environment. The retained Lambda/Bedrock path is not newly cloud-verified.
 
-        D1 --> D2
-        D1 --> D3
-        D4 -->|Updates| D2
-    end
-
-    D2 <-->|Cache| E[(Upstash Redis)]
-    D4 <-->|Listen| F[[Aiven Kafka: market-prices]]
-    D3 -.->|Managed Identity| H[(Azure OpenAI: gpt-4o-mini)]
-    D1 -.->|REST| G[Portfolio Service]
-```
-
-## 7. Production Deployment Topology
-
-### Azure — Active (Live)
-The `insight-service` is built as a container image (ACR) and deployed as an **Azure Container App** with **internal ingress** (reachable only from the api-gateway within the ACA environment). Provisioned by `infrastructure/terraform/azure` (`module.insight_service`):
-
-- **Profiles:** `SPRING_PROFILES_ACTIVE=prod,azure,azure-ai` — activates the Azure infra overlay plus the Azure OpenAI overlay (`application-azure-ai.yml`).
-- **AI auth:** the Container App's **system-assigned managed identity** authenticates to Azure OpenAI (`DefaultAzureCredential` → bearer token); `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` (=`gpt-4o-mini`) are injected as non-sensitive env vars. No API key is stored.
-- **Managed dependencies:** **Aiven Kafka** (mTLS via the canonical `truststore.jks` from `common-dto`/`TruststoreExtractor`) and **Upstash Redis** (`rediss://`, TLS — no custom truststore needed for Upstash).
-- **Scaling:** `min_replicas = 0` (scale-to-zero), `max_replicas = 3`.
-
-### AWS — Soft-Disabled Standby
-- Packaged as a container image and deployed as **AWS Lambda on arm64 / Graviton2** via the **Lambda Web Adapter**, with a `live` alias and a `Function URL` (`AuthType = NONE`) protected by the `X-Origin-Verify` header injected by CloudFront on the api-gateway hop.
-- **AI profile:** `SPRING_PROFILES_ACTIVE=prod,aws,bedrock` activates `BedrockAiInsightService` (Anthropic Claude Haiku) — IAM execution role grants Bedrock invoke; no API keys.
-- Same managed Aiven Kafka / Upstash Redis dependencies.
-- Cold-start mitigation via the `warming` module (when `enable_warming = true`); `reserved_concurrent_executions` omitted (ap-south-1 cap).
+Use [current operations](../runbooks/CURRENT_OPERATIONS.md) for bounded warm-up and cold-start
+handling. Warming does not eliminate model latency. Live chat tests can call billable providers
+and populate caches; none were run or authorized by this docs audit. In the accepted targeted
+check the raw response was not captured, so recorded label/number observations do not establish
+a fresh model invocation.
