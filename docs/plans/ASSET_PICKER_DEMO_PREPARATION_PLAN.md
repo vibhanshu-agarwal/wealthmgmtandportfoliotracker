@@ -8,21 +8,21 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-26 UTC (backlog and runbook reconciliation; post-#320 suite/cleanup status
+**Latest reconciliation:** 2026-09-26 UTC (roadmap/root README/v5 preparation; backlog and runbooks filed;
+post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
-**Owner approval required before push/PR and merge of the runbook reconciliation:** each action needs
-explicit owner authorization; this document grants neither. An unmerged branch copy is a candidate;
-the reconciliation is filed for the project freeze only when its reviewed carrying PR merges
-into `main`. The [runbook index](../runbooks/README.md) records scope and evidence limits.
-The separate accepted [backlog audit](../todos/backlog/README.md) was published as
-[PR #324](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/324), merged at
-`6f1e5700`; it is filed, and its publication approval does not authorize this later bundle.
-If publication approval is withheld, this bundle stays local. The owner authorized #323's
-publication and green-CI merge, which completed
-at `d515aa5b` on 2026-09-25; that publishes the accepted suite and cleanup status and does not
-authorize publication of the separate backlog audit or this runbook reconciliation. The post-#320
-suite and three-user cleanup are complete under approvals R and C; the accepted verdict remains
+**Owner approval required before push/PR and merge of the roadmap/README/v5 reconciliation:** each
+action needs explicit owner authorization; this document grants neither. An unmerged branch copy
+is a candidate; filing requires independent review and owner-authorized merge into `main`.
+The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
+[enhancements v5](../../roadmap_enahancements_v5.md) distinguish delivered capabilities, open
+residuals and the owner's three deferred requests. There is no feature implementation approval.
+The [backlog audit](../todos/backlog/README.md) is filed through #324 (`6f1e5700`), and the
+[runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Those approvals do not
+authorize this later bundle. If publication approval is withheld, this bundle stays local.
+#323 (`d515aa5b`, 2026-09-25) filed the accepted suite and cleanup status. The post-#320 suite and
+three-user cleanup are complete under approvals R and C; the verdict remains
 `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
 No new suite, cleanup, deployment, cloud read or Production action is authorized here. #322 merged
 the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/321)
@@ -137,7 +137,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Demo disposition recorded:** #320 repairs were deployed, targeted #3–#6 checks ran, and the suite's one expected defect is accepted. Named inconclusive/unverified cases remain non-blocking for this demo, not PASS/fixed/closed | Retain the evidence limits below |
-| 5 — Documentation | **IN PROGRESS:** #323 published suite/cleanup status at `d515aa5b`. The accepted backlog audit is filed through #324, merged at `6f1e5700`. Runbook reconciliation covers all 24 existing files: 2 reusable procedures corrected, 3 legacy helpers and 19 historical records classified; new inventory/current-operations guidance prepared. Roadmap remains open; the operator script remains a private reviewed draft | Review/file the runbook reconciliation through its own owner-approved PR. Reconcile the roadmap; no media-brainstorming dependency |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), backlog through #324 (`6f1e5700`), and runbooks through #325 (`5d559478`). Roadmap/root README/v5 reconciliation is prepared, including three unscheduled owner requests; it is not filed until its reviewed carrying PR merges. The operator script remains a private reviewed draft | Independently review and file the roadmap/README/v5 bundle under owner approval. Continue the wider documentation/maintenance handoff; no media-brainstorming dependency for factual reconciliation |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -656,10 +656,11 @@ changes no click, save or restore step, but was not re-rehearsed; it remains a p
 The post-#320 suite/cleanup reconciliation is published through #323 at `d515aa5b`.
 The later [backlog audit](../todos/backlog/README.md) records its independent review and is filed
 for the project freeze through #324, merged at `6f1e5700`.
-The [runbook reconciliation](../runbooks/README.md) is prepared against source and retained
-records, not a fresh operational verification. It counts as filed only when its independently
-reviewed, owner-authorized carrying PR merges into `main`; an unmerged copy remains a candidate.
-Roadmap reconciliation is not complete.
+The [runbook reconciliation](../runbooks/README.md) is filed through #325 (`5d559478`) at source/
+retained-record scope, not fresh operational verification. The [roadmap](../../ROADMAP.md),
+[root README](../../README.md) and [enhancements v5](../../roadmap_enahancements_v5.md) are prepared
+against that baseline. Their filing requires independent review and owner-authorized merge;
+an unmerged copy remains a candidate. The broader documentation pass is not complete.
 **Fast-track exit outcome:** keep the published status truthful and the short operator flow
 reproducible. The full repository documentation overhaul below is follow-on work, not a
 portfolio-demo gate.
@@ -684,7 +685,10 @@ portfolio-demo gate.
 work is to reconcile and audit them against the delivered state. It is factual cleanup and need not
 wait for the brainstorming session, which applies only to the media package (Phase 6).
 
-- [ ] Reconcile the [roadmap](../../ROADMAP.md).
+- [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
+  and [enhancements v5](../../roadmap_enahancements_v5.md) against `main@5d559478`; preserve v1–v4
+  as history and record Sharpe/Sortino, richer FA/TA chat and exploratory charts as deferred,
+  unscheduled requests. Preparation is not independent acceptance or filing.
 - [x] Prepare the [runbook reconciliation](../runbooks/README.md): inventory all 24 existing
   files, correct the 2 reusable procedures, classify 3 legacy helpers and 19 historical records,
   and provide [current operations/restart guidance](../runbooks/CURRENT_OPERATIONS.md).
@@ -694,17 +698,22 @@ wait for the brainstorming session, which applies only to the media package (Pha
   open directory items. Inline TODO counts are separate; no unverified case is counted as fixed.
 
 **Backlog filing rule:** the index records the independent review and bounded wording follow-up.
-The backlog reconciliation is filed when the PR carrying it merges into `main`; push/PR and merge
-each require explicit owner approval. An unmerged candidate does not satisfy this freeze item.
+The backlog reconciliation is filed through #324 (`6f1e5700`).
 
-**Runbook filing rule:** preparation is complete at source/status scope, not live verification.
-The reconciliation is filed only when its independently reviewed carrying PR merges into `main`
-under explicit owner publication/merge approval. This does not complete the roadmap, wider
-documentation pass, media package, maintenance handoff or private cleanup.
+**Runbook filing rule:** the independently reviewed reconciliation is filed through #325
+(`5d559478`) at source/status scope, not live verification.
+
+**Roadmap/README/v5 filing rule:** this preparation counts as filed only when its independently
+reviewed carrying PR merges into `main` under explicit owner publication/merge approval. An
+unmerged candidate does not satisfy filing. None of these documentation filings completes the
+wider documentation pass, media package, maintenance handoff or private cleanup; the three
+new feature requests remain deferred and do not block the freeze.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
 
-- [ ] Update README and ROADMAP with delivered capabilities and honest remaining limitations.
+- [x] Prepare the root README/ROADMAP/v5 update with delivered capabilities and honest remaining
+  limitations; independent review and filing follow the rule above. Other READMEs, architecture,
+  release and detailed flow documents remain outside this root-document reconciliation.
 - [ ] Reconcile Asset Picker requirements, design, task ledger, and master plan with exact Production
   evidence.
 - [ ] Update architecture diagrams and component/data-flow descriptions where deployed behavior
