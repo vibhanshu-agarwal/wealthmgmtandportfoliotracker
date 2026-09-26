@@ -1,13 +1,23 @@
 # Asset Picker — E2E Master Plan to Production
 
+**Roadmap/root README process reconciliation — 2026-09-26 UTC:**
+[ROADMAP](../../ROADMAP.md), [README](../../README.md) and
+[enhancements v5](../../roadmap_enhancements_v5.md) are prepared against `main@5d559478`.
+They distinguish delivered picker/analytics capabilities from open residuals and three deferred
+owner requests: per-user Sharpe/Sortino, richer FA/TA chat and additional charts. v1–v4 remain
+historical snapshots. No feature implementation, new operational proof or Spec A/B1/B2 task
+completion is claimed. Filing requires independent review and owner-authorized publication/
+merge; an unmerged copy is a candidate. Runtime/demo acceptance remains governed by the
+demo dashboard; this documentation candidate does not advance it.
+
 **Runbook process reconciliation — 2026-09-26 UTC:** the
 [runbook index](../runbooks/README.md) classifies all 24 existing runbooks; the 2 reusable
 procedures are corrected against source, while the 3 legacy helpers and 19 historical records
 remain unchanged. [Current operations](../runbooks/CURRENT_OPERATIONS.md) records dispatch,
 demo startup and restart boundaries. No new operational proof or Spec A/B1/B2 completion is
-claimed. This reconciliation is filed only after independent review and an owner-authorized
-merge of its carrying PR. The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains
-current acceptance and the remaining freeze work; the roadmap is not reconciled by this bundle.
+claimed. This independently reviewed reconciliation is filed through #325 (`5d559478`).
+The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains current acceptance and the
+remaining freeze work; the roadmap/README/v5 filing is separate.
 
 **Backlog process reconciliation — 2026-09-26 UTC:** the
 [backlog index](../todos/backlog/README.md) records 8 fixed/completed closures, 2 superseded
@@ -16,8 +26,7 @@ historical proof is changed. Current runtime/demo status is governed by the
 [demo preparation dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md), including #323's published
 post-#320 suite/cleanup result. Older baseline paragraphs below retain their historical dates;
 they are not fresh serving-state assertions. The backlog index records the independent review;
-the audit is filed only when its carrying PR merges into `main`, with explicit owner approval
-required for push/PR and merge.
+the audit is filed through #324 (`6f1e5700`).
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted
