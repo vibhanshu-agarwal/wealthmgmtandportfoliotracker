@@ -1,5 +1,11 @@
 # Lambda vs Lightsail: Deployment Cost & Feasibility Analysis
 
+> **Historical reference — classified 2026-09-26 UTC.** April 2026 AWS cost/design exploration. Azure is the accepted demo target; old prices, quotas, latency measurements, rollback estimates and feasibility claims below were not refreshed and are not current recommendations.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 **Date:** 2026-04-22 (revised — PC cost table corrected, arm64 lever added and expanded, Lightsail IPv4 caveat added, warming topology §2.1.1 added)
 **Budget constraint:** under $10 preferred, $15 hard maximum
 **Workload:** 4 Spring Boot 4.0.5 microservices (api-gateway, portfolio-service, market-data-service, insight-service) deployed as container-image Lambdas behind CloudFront in ap-south-1.

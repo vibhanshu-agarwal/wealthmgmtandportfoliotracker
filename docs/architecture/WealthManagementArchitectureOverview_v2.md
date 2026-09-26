@@ -1,32 +1,78 @@
-# Wealth Management & Portfolio Tracker — Architecture (v2)
+# Wealth Management & Portfolio Tracker — Architecture Overview (v2)
 
-## Executive summary (v2)
-This repo hosts a modular wealth management platform: a **Next.js 16 / React 19** frontend (TypeScript) and a **Spring Boot 4.x on Java 25** backend split across four services. The platform runs in production as a serverless AWS stack provisioned by **Terraform** — the legacy AWS CDK code under `infrastructure/lib/` is deprecated and retained only for historical reference.
+**Reconciled:** 2026-09-26 UTC against `main@8aa4035b`. This replaces the April AWS-only
+description as the current overview. It is a source/accepted-evidence description, not a fresh
+cloud read or availability claim. The [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md)
+retains runtime acceptance and known limitations.
 
-Multi-module Gradle layout (`settings.gradle`):
+## Purpose and stack
 
-| Module | Role |
-| ------ | ---- |
-| `api-gateway` | Spring Cloud Gateway: JWT validation, CloudFront origin verification, Redis-backed distributed rate limiting, request routing |
-| `portfolio-service` | Postgres-backed portfolios, holdings, analytics, FX conversion, Kafka projection of `market-prices` (with DLT) |
-| `market-data-service` | MongoDB-backed market ingestion, Yahoo Finance adapter, Resilience4j retries, Kafka producer for `PriceUpdatedEvent` |
-| `insight-service` | Redis ticker cache, Bedrock/mock AI insight + chat surface |
-| `common-dto` | Shared event contracts, JKS truststore, `TruststoreExtractor` |
+A portfolio-demo application with a static Next.js frontend and four Spring Boot services.
+It demonstrates catalog-backed holdings editing, valuations, historical analytics, stored
+market data and ticker-oriented AI chat. It is not a trading/execution platform or a complete
+financial-advice system.
 
-Key updates since v1
-- **Infrastructure shift:** Migrated from AWS CDK to a Terraform-managed serverless stack. The four Spring Boot microservices are deployed as **AWS Lambda functions on arm64 / Graviton2** using the **Lambda Web Adapter** (`/opt/extensions/lambda-adapter`) as a sidecar, fronted by a single **Amazon CloudFront** distribution.
-- **Event reliability:** Idempotent projection writes (`ON CONFLICT … IS DISTINCT FROM`), Kafka keying by ticker, and a Dead-Letter Topic (`market-prices.DLT`) for poison messages in `portfolio-service`.
-- **Schema governance:** `common-dto` is the canonical home for inter-service contracts; Pact consumer/provider tests enforce HTTP contracts; an event-schema registry and topic versioning remain on the backlog.
-- **Observability:** Spring Boot Actuator health endpoints on every service, EventBridge synthetic warming with an SNS alarm on Lambda concurrency (`infrastructure/terraform/modules/warming`), structured logs in CloudWatch.
-- **Testing & CI:** Strengthened pipelines (`ci-verification.yml`, `frontend-e2e-integration.yml`, `synthetic-monitoring.yml`) with Testcontainers (Postgres, Mongo, Kafka, Redis), Pact consumer/provider tests, Playwright E2E against Docker Compose and live AWS, and Qodana quality checks.
-- **Operational hardening (late April 2026):** Redis-backed distributed rate limiting promoted to active, Kafka DLQ shipped, Lambda permission state-drift fixed via root-module `import` blocks (PR #26), and synthetic monitoring parked for cost (see `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`).
+[frontend/package.json](../../frontend/package.json) pins Next.js 16.2.3 and declares React
+19.2.x; [next.config.ts](../../frontend/next.config.ts) uses static export, without a runtime
+Next.js API proxy. [build.gradle](../../build.gradle) selects Java **21**, Spring Boot **4.1.0**,
+Spring Cloud 2025.1.2 and Spring AI 2.0.0. Earlier Java 25 descriptions are historical.
+The gateway is WebFlux; the domain HTTP services use Spring MVC.
 
-Why v2 matters
-Financial correctness and eventual consistency are first-class concerns: the platform favors idempotent processing, deterministic resilience, and reproducible IaC so that valuations and derived insights can be relied on at scale even when downstream APIs (Yahoo Finance, Bedrock) misbehave.
+## Modules and ownership
 
-Primary value
-- Safe, auditable, and testable event-driven updates
-- Clear service ownership behind a single public API surface (CloudFront → api-gateway Lambda → downstream Lambdas)
-- Smooth path from local development (Docker Compose + LocalStack) to live AWS (Terraform `apply`)
+[settings.gradle](../../settings.gradle) declares seven Gradle modules, not five:
 
-Reference materials: rendered PlantUML in `docs/architecture/architecture.puml`; CI gating checklist in `docs/architecture/IntegrationTestCases.md`; warming/cost runbook in `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`.
+| Module | Responsibility |
+|---|---|
+| `api-gateway` | Signup/login, HS256 JWT, routing, user-header injection, distributed rate limits and guarded demo writes |
+| `portfolio-service` | PostgreSQL holdings/version transactions, market-price projection/history, USD analytics and FX conversion |
+| `market-data-service` | MongoDB stored prices, Yahoo provider adapter, refresh runner and Kafka price publication |
+| `insight-service` | Redis market cache, stored-window summaries, ticker resolution and configured sentiment/chat adapters |
+| `common-dto` | Shared event/wire contracts and truststore extraction utilities |
+| `common-catalog` | Shared catalog model/loading/validation |
+| `common-observability` | Shared observation/trace sanitization and route templating |
+
+The frontend is a separate Node project, not an eighth Gradle module.
+
+## Accepted demo target versus retained alternatives
+
+The accepted demo target is **Azure Static Web Apps + Azure Container Apps**, provisioned from
+[Azure Terraform](../../infrastructure/terraform/azure/main.tf). The frontend and API use
+separate origins. Only the gateway has external service ingress; the three downstream service
+ingresses are internal to the Container Apps environment. Internal ingress is not proof of
+per-endpoint caller authorization.
+
+A separate Container Apps Job runs market refresh at `0 8 * * *` (08:00 UTC); the market API
+does not rely on a timer while scaled to zero. Azure OpenAI is the selected AI integration.
+External PostgreSQL, MongoDB, Kafka and Redis connections are injected, not provisioned as
+RDS/ElastiCache by the Azure stack.
+
+AWS Lambda/CloudFront Terraform and Lambda Web Adapter Dockerfiles remain in the repo.
+They are an alternative/historical path, **not an established ready rollback**. Local Docker
+Compose runs four services with PostgreSQL, MongoDB, Kafka and Redis; LocalStack is optional
+legacy infrastructure experimentation, not a prerequisite for normal application E2E.
+
+## Request and event boundaries
+
+Browser HTTP calls go through the gateway. Signup creates credentials and an empty portfolio.
+Holdings replacement is a complete desired-set transaction with an expected version; conflicts
+are rejected rather than silently retried. Market reads serve MongoDB data, not live Yahoo calls.
+
+The refresh runner and approved manual market writes publish `PriceUpdatedEvent` on
+`market-prices`, keyed by ticker. Portfolio projects prices/history to PostgreSQL; insight
+maintains Redis observations and summaries. These stores are eventually consistent. There is
+no established MongoDB-to-Kafka transactional outbox or cross-store exactly-once guarantee.
+
+Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
+model sentiment; its source label can describe cached output and is not proof of a new model
+call. A separate path-ID portfolio advisor is not the ticker-chat pipeline and needs an
+ownership-authorization review.
+
+## Read next
+
+- [Detailed architecture](WealthManagementArchitectureDocumentation_v2.md) and [diagram source](architecture.puml).
+- [Service E2E guides](../e2e-flows/) for request/event details and caveats.
+- [Current operations](../runbooks/CURRENT_OPERATIONS.md), [test inventory](IntegrationTestCases.md)
+  and [risk register](RiskMitigationPlan.md).
+- [Roadmap v5](../../roadmap_enhancements_v5.md) for deferred per-user Sharpe/Sortino, richer
+  FA/TA chat and more engaging charts; none is delivered by this documentation update.

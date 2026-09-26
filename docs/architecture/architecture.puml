@@ -1,52 +1,64 @@
 @startuml
-title Wealth Management & Portfolio Tracker - Architecture
+title Portfolio Demo - Logical Architecture (source audit 2026-09-26, main@8aa4035b)
 skinparam componentStyle rectangle
 
-actor "User" as User
-
-node "Next.js Frontend\n(React, TypeScript)" as Frontend
-node "API Gateway\n(Spring Cloud Gateway)" as Gateway
-
-node "portfolio-service\n(Spring Boot, JPA)" as Portfolio
-node "market-data-service\n(Spring Boot, MongoDB)" as Market
-node "insight-service\n(Spring Boot)" as Insight
-
-database "PostgreSQL\n(portfolio data)" as Postgres
-database "MongoDB\n(market prices)" as Mongo
-queue "Kafka\n(events/topics)" as Kafka
-database "Redis\n(gateway rate-limiting)" as Redis
-
-User --> Frontend : "Interacts via UI"
-Frontend --> Gateway : "HTTP / REST (GraphQL/REST)"
-Gateway --> Portfolio : "/api/portfolios/**"
-Gateway --> Market : "/api/market/**"
-Gateway --> Insight : "/api/insights/**"
-
-Market --> Kafka : "publish: price-change topic"
-Kafka --> Portfolio : "consume: price-change -> recalc valuations"
-Kafka --> Insight : "consume: events -> produce insights"
-
-Portfolio --> Postgres : "CRUD, transactional data"
-Market --> Mongo : "store raw and aggregated market prices"
-Gateway --> Redis : "rate limit / caching (optional)"
-
-note right of Kafka
-  - Topics: price-change, trade-events, insight-events
-  - Consider partitions for ordering and scale
-  - Ensure consumer idempotency
-end note
-
-package "Local Dev Infra (Docker Compose)" {
-  node "Postgres" as LocalPG
-  node "MongoDB" as LocalMongo
-  node "Kafka (Zookeeper)" as LocalKafka
-  node "Redis" as LocalRedis
+actor "Demo user" as User
+node "Azure demo application boundary" {
+  component "Static Web Apps\nNext.js static export" as Frontend
+  component "External ingress\napi-gateway / WebFlux" as Gateway
+  component "Internal ingress\nportfolio-service / MVC" as Portfolio
+  component "Internal ingress\nmarket-data-service / MVC" as Market
+  component "Internal ingress\ninsight-service / MVC" as Insight
+  component "Separate market refresh Job\n08:00 UTC schedule" as Refresh
 }
 
-note left
-  - CI: GitHub Actions
-  - Testing: Testcontainers, JUnit, Vitest, Playwright
-  - Shared contracts: common-dto module
-end note
+database "External PostgreSQL\nidentity, holdings/version, price projection/history" as Postgres
+database "External MongoDB\nstored market prices/references" as Mongo
+queue "External Kafka\nmarket-prices / PriceUpdatedEvent" as Kafka
+database "External Redis\nlimits/presence, observations, AI caches" as Redis
+cloud "Yahoo market-data provider" as Yahoo
+cloud "Azure OpenAI\nconfigured adapters / managed identity" as AI
+cloud "FX provider\nUSD rate feed" as FX
+component "OTLP agent / Application Insights\nsource-configured telemetry" as Telemetry
 
+User --> Frontend : UI
+Frontend --> Gateway : HTTPS JSON / separate API origin
+Gateway --> Postgres : signup / login credentials
+Gateway --> Redis : limiter / advisory presence
+Gateway --> Portfolio : /api/portfolio/**, /api/assets/**
+Gateway --> Market : /api/market/**
+Gateway --> Insight : /api/insights/**, /api/chat/**
+Portfolio --> Postgres : transactional holdings / analytics
+Portfolio --> FX : available FX conversion
+Market --> Mongo : stored reads / approved writes
+Market --> Kafka : manual-write observations
+Refresh --> Yahoo : scheduled price fetch
+Refresh --> Mongo : persist observations
+Refresh --> Kafka : keyed price publication
+Kafka --> Portfolio : portfolio-group projection
+Kafka --> Insight : insight-group cache updates
+Portfolio --> Kafka : rejected/exhausted records to market-prices.DLT
+Insight --> Redis : prices / observation window / caches
+Insight --> AI : optional resolution / sentiment / advisor
+Insight --> Portfolio : separate path-ID advisor fetch
+Gateway ..> Telemetry : observations
+Portfolio ..> Telemetry : observations
+Market ..> Telemetry : observations
+Insight ..> Telemetry : observations
+Refresh ..> Telemetry : observations
+
+note bottom of Kafka
+  Persist/publish is not a cross-store transaction or outbox.
+  Consumer projection/cache semantics differ; no exactly-once claim.
+end note
+note bottom of Insight
+  Bulk summaries use stored facts without model calls.
+  Source labels can describe cached sentiment.
+  Path-ID advisor ownership needs separate review.
+end note
+note bottom of Frontend
+  Logical source topology, not a live cloud inventory.
+  Local Compose and retained AWS paths differ.
+  Runtime verdict/evidence remain in the demo dashboard.
+end note
 @enduml

@@ -1,80 +1,161 @@
-# Architecture Documentation (v2)
+# Wealth Management & Portfolio Tracker — Detailed Architecture (v2)
 
-This document captures the current, detailed architecture and operational guidance for the Wealth Management & Portfolio Tracker. It reflects the late-April 2026 state of the codebase: a Terraform-managed serverless stack on AWS Lambda (arm64/Graviton2) fronted by CloudFront, with all four Spring Boot services packaged as container images and run via the Lambda Web Adapter.
+**Source audit:** 2026-09-26 UTC at `main@8aa4035b`. The April AWS description is replaced
+by the current demo architecture. This is not a live Azure revision read or a new test report.
+Accepted build/evidence identity and `PASS_WITH_EXPECTED_DEFECTS` stay in the
+[demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
 
-1. High-level components
-- Frontend: **Next.js 16** with **React 19** (TypeScript) — client-facing UI, uses TanStack Query for server state and Playwright/Vitest/MSW/Pact for tests. The frontend communicates only with the API Gateway via CloudFront.
-- API Gateway: Spring Cloud Gateway — central public API, routing, JWT validation, CloudFront origin verification (`X-Origin-Verify`), Redis-backed distributed rate-limiting, and `X-User-Id` injection for downstream services.
-- Services (all built from a single multi-module Gradle root: `settings.gradle` includes `api-gateway`, `portfolio-service`, `market-data-service`, `insight-service`, `common-dto`):
-  - **portfolio-service**: PostgreSQL, Spring Data JPA. Responsible for portfolios, holdings, positions, transaction history, and on-demand valuation endpoints. Applies business rules and exposes REST endpoints under `/api/portfolio`. Consumes `PriceUpdatedEvent` and projects the latest price into `market_prices`.
-  - **market-data-service**: MongoDB for raw market ticks and aggregated snapshots. Pulls from Yahoo Finance via a Resilience4j-wrapped client and publishes `PriceUpdatedEvent` to Kafka.
-  - **insight-service**: Consumes `PriceUpdatedEvent` from Kafka into a Redis cache (`market:latest:*`, `market:history:*`), enriches market summaries with AI sentiment (Bedrock or mock), and exposes `/api/insights/**` and `/api/chat`.
-  - **common-dto**: Shared module for message contracts, DTOs, the canonical `truststore.jks`, and the `TruststoreExtractor` utility (extracts to `/tmp` for Lambda compatibility).
+## 1. Components, framework and deployment boundaries
 
-2. Messaging and event design
-- Broker: Apache Kafka for asynchronous communication. The primary topic in flight is `market-prices` (carrying `PriceUpdatedEvent`); a Dead-Letter Topic (`market-prices.DLT`) is used by `portfolio-service` to isolate poison messages.
-- Schema governance: Pact consumer/provider tests gate HTTP contracts; an event-schema registry and topic versioning convention remain on the backlog. Until then, `common-dto` is the canonical home for event DTOs and additive evolution rules apply.
-- Partitioning strategy: `PriceUpdatedEvent` records are keyed by ticker symbol so partition ordering is preserved per asset. Consumers must use matching partitioning keys.
-- Consumer behavior:
-  - Idempotency: Portfolio projection writes are idempotent at value level (`INSERT ... ON CONFLICT ... IS DISTINCT FROM`). Event-id–based dedup ledgers are still on the backlog for high-value topics.
-  - Retries: Transient errors trigger controlled retries via Spring Kafka's `DefaultErrorHandler`. Records that exhaust retries — and any record raising `MalformedEventException` — are routed to `market-prices.DLT`.
-  - Outbox: Spring Modulith's Event Publication Registry persists events to Postgres in the same transaction as the business write before they are forwarded to Kafka.
+The [overview](WealthManagementArchitectureOverview_v2.md) lists the seven Gradle modules.
+Java 21 / Boot 4.1.0 are selected in [build.gradle](../../build.gradle); Azure images use
+Microsoft OpenJDK 21 ([gateway Dockerfile](../../api-gateway/Dockerfile.azure)).
+The static Next.js 16 / React 19 frontend uses TanStack Query, Radix UI and Recharts.
+Static export means API origins are configured at frontend build time; there is no Next.js
+server proxy or frontend-owned credential store.
 
-3. Data stores and patterns
-- PostgreSQL: Primary transactional store for `portfolio-service`. Migrations are managed via Spring's startup machinery; connection pool sizing is tuned for expected concurrency under Lambda's per-instance limits.
-- MongoDB: Append-heavy store for raw market snapshots and seeded fixtures. The `LocalMarketDataSeeder` populates baseline tickers from `config/seed-tickers.json` when the collection is empty.
-- Redis: Used by the api-gateway for **distributed rate limiting** (Lettuce + Upstash TLS in production) and by `insight-service` for the ticker cache (`market:latest:*`, `market:history:*`).
+[Azure Terraform](../../infrastructure/terraform/azure/main.tf) defines Static Web Apps,
+ACR, a Container Apps environment, four service Container Apps, a scheduled refresh Job,
+Azure OpenAI and telemetry/budget resources. The gateway ingress is external; downstream
+ingresses are internal. Non-seed application target ports are 8080; internal service URLs
+use ingress port 80, not bare-host port 8081/8082/8083.
+Profiles are `prod,azure`, with `azure-ai` additionally selected for insight.
+Scale-to-zero makes service wake-up a demo prerequisite, not proof of permanent availability.
 
-4. API design and contracts
-- Gateway exposes a stable API surface: `/api/portfolio`, `/api/market`, `/api/insights`, `/api/chat`. Internal services expose `/actuator/health` for warming + CI but are not directly reachable from the public internet — the `CloudFrontOriginVerifyFilter` rejects any request that does not carry the CloudFront-injected `X-Origin-Verify` header.
-- Authentication: Centralized at the Gateway via HS256 JWT validation (`AUTH_JWT_SECRET`). The gateway strips spoofed `X-User-Id` headers and re-injects them from the verified `sub` claim.
-- Versioning: API routes and event topics are versioned independently. Consumers should declare supported topic versions.
+AWS Terraform/Lambda image paths remain retained alternatives. Local Compose uses local
+ports and stores; do not copy Azure ingress assumptions into Compose. Neither retained AWS
+code nor LocalStack examples prove current rollback feasibility.
 
-5. Testing strategy
-- Unit tests: JUnit + Mockito (backend); Vitest + RTL + MSW for frontend components.
-- Integration tests: Testcontainers for Postgres, MongoDB, Kafka, and Redis. Tagged via JUnit `@Tag("integration")` and run by the Gradle `integrationTest` task.
-- Contract tests: Pact consumer tests run from `frontend/` (`vitest.pact.config.ts`); Pact provider verification runs in `portfolio-service` and `insight-service` (`*PactVerification*`).
-- E2E tests: Playwright runs against the Docker Compose stack in `ci-verification.yml` and `frontend-e2e-integration.yml`, and against the live AWS deployment (`https://vibhanshu-ai-portfolio.dev`) in `synthetic-monitoring.yml` (cron, currently parked).
+## 2. Data ownership
 
-6. CI/CD and environments
-- CI: GitHub Actions — `ci-verification.yml` (unit → integration → Pact consumer → Docker build + Pact provider + Playwright E2E), `ci.yml` (lint/build), `frontend-ci.yml`, `qodana_code_quality.yml`, `gitleaks.yml`.
-- CD: `terraform.yml` runs `terraform apply` against the active AWS account; `deploy.yml` orchestrates the end-to-end image build + ECR push + Lambda update; `frontend-cd.yml` publishes the static export to S3+CloudFront.
-- Gating: Pull requests must pass: unit + integration tests, Pact consumer + provider verification, Playwright E2E, Qodana, and Gitleaks.
+| Store | Writers/readers and meaning |
+|---|---|
+| PostgreSQL | Gateway authentication reads/writes user/credential data; portfolio owns portfolio/holding transactions, versions, projected market prices and history; Flyway migrations live with portfolio |
+| MongoDB | Market service and its refresh runner persist stored market prices/reference observations; user page loads read this data |
+| Kafka | `market-prices` carries keyed `PriceUpdatedEvent` observations to independent consumers; portfolio uses `market-prices.DLT` for rejected/exhausted records |
+| Redis | Gateway limiter and presence state; insight prices/observation window, tracking and AI caches; portfolio cache backend depends on profile |
 
-7. Observability and operations
-- Health: Spring Boot Actuator `/actuator/health` is exposed by every service and is the readiness signal for the Lambda Web Adapter (`AWS_LWA_READINESS_CHECK_PATH=/actuator/health`).
-- Logs: Structured logs flow to CloudWatch Logs. Correlation/trace IDs propagate from CloudFront → api-gateway → downstream services via headers.
-- Metrics & alarms: The Terraform `warming` module attaches a CloudWatch alarm on Lambda concurrent executions with SNS email notification (`warming_alarm_email`). Consumer lag dashboards remain on the backlog.
-- Synthetic monitoring: `synthetic-monitoring.yml` runs Playwright against the live CloudFront URL hourly when enabled.
+Gateway and portfolio share PostgreSQL identity tables: this is not strict one-database-per-service
+isolation. Holdings are a composition/cost-basis model, not a delivered transaction/trade ledger.
+Domain entities stay service-owned; shared wire/catalog/observability types belong in their
+respective common modules.
 
-8. Reliability & data-correctness patterns
-- Idempotent projections: `MarketPriceProjectionService` upserts with `IS DISTINCT FROM` to no-op duplicate deliveries.
-- Cold-start mitigation: EventBridge warming rules + API Destinations periodically hit `/actuator/health` on every Function URL to keep at least one container warm; see `docs/architecture/lambda-stopgap-execution-plan.md`.
-- Resilience: `ExternalMarketDataClient` is wrapped in Resilience4j retry/circuit-breaker policies. WireMock-backed slice tests assert fallback-to-cache behaviour on 429/503/5xx.
-- Reconciliation jobs: planned but not yet scheduled — tracked under the next improvements backlog.
+[portfolio application configuration](../../portfolio-service/src/main/resources/application.yml)
+enables Flyway startup migrations and JPA schema validation. This is not a separate automatically
+approved deploy-time migration phase. Operations must account for schema compatibility before
+rollback or waking an old image.
 
-9. Security
-- Secrets: GitHub Actions secrets → `TF_VAR_*` → Terraform sensitive variables → Lambda env vars; never written to source-controlled files. `truststore.jks` is bundled in `common-dto` and extracted at startup via `TruststoreExtractor` so Lambda's read-only filesystem can satisfy Lettuce/Kafka clients.
-- Edge protection: CloudFront injects `X-Origin-Verify`; the api-gateway `CloudFrontOriginVerifyFilter` returns 403 to any request missing the header. Direct Function URL hits are therefore blocked.
-- Pre-commit: Gitleaks runs locally and in CI to prevent secret leakage.
+## 3. Identity, routes and guarded writes
 
-10. Migration and versioning guidance
-- When changing `common-dto`: prefer additive fields and default values. If a breaking change is required, publish a new topic version and migrate consumers gradually.
-- Database migrations: keep reversible or safely-forward migrations and run them as part of the deploy pipeline behind health checks.
+See the [gateway flow](../e2e-flows/api-gateway-service-e2e.md) and its source links.
 
-11. Runbooks & incident response
-- Consumer lag: check Kafka consumer-group lag (Aiven console), restart consumer with offset reset if needed.
-- Poison messages: inspect `market-prices.DLT`, investigate schema/handler bug, re-publish after fix.
-- Cold-start spikes: re-enable `var.enable_warming` in `terraform.tfvars` and redeploy; SNS alarm triggers when concurrent executions exceed `warming_concurrent_executions_threshold`.
-- Valuation discrepancy: compare `market_prices` projection vs source feed in MongoDB; roll-forward corrections via the manual `POST /api/market/prices/{ticker}` admin endpoint.
+- Gateway-owned signup/login replaces the retired frontend auth stacks. Signup transactionally
+  creates the user, credential and empty portfolio. Passwords use bcrypt.
+- HS256 JWTs have a one-hour lifetime and a session identifier. Browser logout clears local
+  state but does not revoke a still-valid JWT; this remains an accepted demo defect.
+- Spring Security WebFilters authenticate; routing GlobalFilters verify configured origin,
+  strip spoofed user headers and inject the verified subject. Origin verification is conditional
+  and is not a blanket guarantee that every direct service URL/controller is blocked.
+- CORS is not authorization. Internal endpoints have separate shared-key/guard contracts.
+  Public health paths do not require login, and liveness is not credential-store readiness.
+- Named Redis rate limiters serve ordinary, AI and auth traffic. Limiter fail-open behavior
+  does not make a failed Redis-dependent business read succeed.
+- The `ro` claim blocks protected mutations **except** exact B2 PUT paths
+  `/api/portfolio/holdings` and `/api/portfolio/demo-reset`. It is not "all saves forbidden".
+  Manual reset additionally enforces its fixed showcase identity and internal authorization.
+- Presence is advisory, not a lock. Multi-user isolation acceptance applies to the tested
+  portfolio/session paths, not automatically to every insight endpoint.
 
-12. Next improvements backlog
-- Add schema registry integration and automated compatibility checks in CI.
-- Add event-id dedup ledger for `portfolio-service` and `insight-service` consumers.
-- Restore the synthetic monitoring schedule once free-tier headroom allows.
-- Expand contract test coverage across all message types.
+The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
+portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.
+Do not describe it as proven caller-owned access. This is a source security concern for separate
+review, not a tested exploit or a new live validation performed here.
 
-Appendices
-- File references: `infrastructure/terraform/`, `docs/architecture/*.puml`, `common-dto/`, `docs/changes/CHANGES_INFRA_SUMMARY_2026-04-26.md`, `docs/changes/CHANGES_CACHE_WARMING_2026-04-30.md`.
-- Contact: service owners listed in repo README.
+## 4. Holdings, valuation and analytics
+
+[Portfolio flow](../e2e-flows/portfolio-service-e2e.md) describes the HTTP and transaction details.
+
+`PUT /api/portfolio/holdings` replaces the complete desired holdings set with decimal-string
+quantities and an expected portfolio version. Atomic validation/write rejects conflicts with
+409 and invalid compositions with 400. Identical tuples are no-ops; actual changes advance the
+version. Client retry must not overwrite another session's changes.
+
+Holdings views enrich portfolio rows using market batches. Summary/analytics use the PostgreSQL
+event projection and FX provider. These sources can lag each other; missing/stale observations,
+partial coverage and null changes must not be coerced into complete zero-valued results.
+Freshness marks a timestamped price stale only when its age **exceeds 50 hours**.
+
+Analytics select the latest observation per ticker/UTC day across a 50-day window. History
+uses current quantities and available current FX rates, not historical holdings/cash flows or
+historical FX returns. Synthetic fallback paths exist and must be distinguished from observed
+market history. Analytics cache TTL is 30 seconds; immediate post-write cache eviction is not
+established. Sharpe/Sortino analysis is future work.
+
+The non-local FX implementation named `EcbFxRateProvider` actually reads `open.er-api.com`
+USD rates, not an ECB feed. It computes cross rates and may return unavailable conversions;
+it does not assume every currency equals USD. Local uses fixed rates. Azure sets FX cache
+refresh/eviction to 06:00, without an explicit scheduler timezone. This is not proof a daily
+refresh happened while the service was scaled to zero.
+
+## 5. Market refresh and event consistency
+
+[Market flow](../e2e-flows/market-data-service-e2e.md) identifies producer and profile paths.
+
+Browser requests read stored Mongo prices. The Azure refresh Job invokes the Yahoo adapter for
+active catalog entries at 08:00 UTC; the API's scheduled task is disabled on Azure.
+Provider-symbol mapping is separate from canonical catalog identity. There are 159 ACTIVE
+entries and one DEPRECATED entry at this source cut; that is not guaranteed feed coverage.
+
+The shared [event](../../common-dto/src/main/java/com/wealth/market/events/PriceUpdatedEvent.java)
+carries observation metadata. Publications are keyed by ticker, which orders records within
+a partition, not across independent producers/stores. Mongo persistence and Kafka publish are
+separate actions. There is **no Spring Modulith Event Publication Registry/outbox** implemented
+for this path, no cross-store transaction and no general exactly-once claim.
+
+Portfolio projection has timestamp/tuple guards: older observations do not overwrite newer
+ones, equal-time conflicting payloads are rejected, and history identities are deduplicated.
+The DLT/retry handler is a portfolio-consumer control, not proof that every consumer has the
+same failure semantics.
+
+Insight retains timestamp-identified observations, but its multi-command cache update is not
+an atomic monotonic-latest transaction. Redis loss/restart does not automatically trigger a
+full Mongo replay; the earlier startup-hydration design is historical, not current behavior.
+Refresh success does not imply every ticker updated or both consumers are caught up.
+
+## 6. Insights and AI attribution
+
+[Insight flow](../e2e-flows/insight-service-e2e.md) distinguishes bulk, per-ticker, chat and advisor.
+
+Bulk market summaries use stored Redis facts, without per-ticker model calls. Trends mean change
+over the stored observation window, not necessarily 24 hours. Per-ticker sentiment and chat may
+invoke/cache a model. Catalog/explicit resolution precedes optional model-assisted resolution;
+chat is not a delivered multi-turn portfolio-context/FA/TA assistant.
+
+Azure uses Azure OpenAI adapters with managed identity as the default source configuration.
+The Terraform deployment alias remains `gpt-4o-mini`, while its configured model is
+`gpt-4.1-mini` version `2025-04-14`; an alias is not the model identity or live attestation.
+Bedrock is a real retained provider adapter, not the old randomized mock described in the
+previous risk document. Other profiles can use rule-based adapters.
+
+`sentimentSource` identifies the sentiment adapter/output, possibly cached; it does not prove
+a new model invocation, the asset resolver's provenance or that all natural-language text is
+factually correct. Model failures can produce unavailable sentiment/fallback facts. A visible
+label alone is weaker evidence than a preserved response and correlated server traces.
+
+## 7. Operations, tests and future work
+
+The shared observability module sanitizes/limits attributes and templates routes.
+Application configs enable W3C tracing; Azure Terraform configures OTLP to the environment agent
+and Application Insights. This is not proof of current export delivery, complete redaction or
+lag alerting. Source-enabled telemetry and manual allowance audits are not automatic SLOs or
+a hard spend ceiling.
+
+Use [Current operations](../runbooks/CURRENT_OPERATIONS.md) and
+[Observability](../runbooks/OBSERVABILITY.md) for approved packet boundaries, not old offset-reset,
+warming-reactivation or repair recipes. [Test inventory](IntegrationTestCases.md) lists source
+coverage and workflow triggers; skipped/manual/unrun suites are not passing evidence.
+
+[Risk register](RiskMitigationPlan.md), [backlog](../todos/backlog/README.md) and
+[roadmap v5](../../roadmap_enhancements_v5.md) govern residual/deferred work. This documentation
+does not authorize operational access, implement features or change accepted defect dispositions.
 

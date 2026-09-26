@@ -1,8 +1,10 @@
 # Asset Picker — E2E Master Plan to Production
 
-**Service-flow documentation reconciliation — 2026-09-26 UTC:** the four guides in
-[E2E flows](../e2e-flows/) are audited against source at `main@8aa4035b`. They distinguish
-browser requests, service writes, refresh jobs and event projections; this is documentation
+**Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
+[E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are
+audited against source at `main@8aa4035b`. The architecture index distinguishes 6 current
+references, 8 historical records and 1 formerly empty placeholder. They distinguish browser
+requests, service writes, refresh jobs and event projections; this is documentation
 correction, not new operational proof or Spec A/B1/B2 completion. An unmerged branch copy is
 a candidate; filing requires independent review and owner-authorized publication, and occurs
 only when the carrying PR merges into main. Runtime/demo acceptance remains governed by the

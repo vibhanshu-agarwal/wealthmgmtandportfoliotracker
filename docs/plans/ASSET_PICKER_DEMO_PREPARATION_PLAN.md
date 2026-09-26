@@ -8,17 +8,22 @@
 
 **Filed and reconciled:** 2026-09-20
 
-**Latest reconciliation:** 2026-09-26 UTC (four E2E service-flow guides prepared against
+**Latest reconciliation:** 2026-09-26 UTC (four E2E service-flow guides and architecture-folder
+reconciliation prepared against
 `main@8aa4035b`; roadmap/root README/v5, backlog and runbooks filed;
 post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
-**Owner approval required before push/PR and merge of the E2E-flow reconciliation:** each
+**Owner approval required before push/PR and merge of the flow/architecture reconciliation:** each
 action needs explicit owner authorization; this document grants neither. An unmerged branch copy
 is a candidate; filing requires independent review and owner-authorized merge into `main`.
 The four [service-flow guides](../e2e-flows/) describe current request, composition/reset,
 stored-price refresh/projection and chat-attribution paths. This is source reconciliation,
 not a new live test or closure of the wider documentation pass.
+The [architecture index](../architecture/README.md) identifies 6 corrected current references,
+8 historical records with new classification banners, and 1 formerly empty historical
+placeholder. Azure/Java 21, data/AI boundaries and the logical diagram are corrected; no live
+inventory, new application proof or accepted defect closure is claimed.
 The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
 [enhancements v5](../../roadmap_enhancements_v5.md) are filed through #326 (`8aa4035b`),
 with the owner's three requests still deferred. There is no feature implementation approval.
@@ -721,6 +726,10 @@ new feature requests remain deferred and do not block the freeze.
   evidence.
 - [ ] Update architecture diagrams and component/data-flow descriptions where deployed behavior
   changed.
+  The [architecture folder](../architecture/README.md) is source-reconciled against
+  `main@8aa4035b` (2026-09-26 UTC), including the PlantUML source, current references and
+  historical classification. Preparation is complete; independent review and filing are still
+  required. No diagram rendering or fresh serving-state verification is claimed.
 - [ ] Document signup, authentication, portfolio mutation, conflict, persistence, reset,
   price/freshness, chatbot, rollback, and multi-user E2E flows.
   The four existing [service-flow guides](../e2e-flows/) have been source-audited and corrected
@@ -734,8 +743,8 @@ new feature requests remain deferred and do not block the freeze.
 Mandatory factual status records may be updated earlier. The comprehensive documentation pass
 belongs here and must not delay Phase 1.
 
-**E2E-flow filing rule:** the corrected gateway, portfolio, market-data and insight guides count
-as filed only when their independently reviewed, owner-authorized carrying PR merges into
+**Flow/architecture filing rule:** the corrected service-flow guides and architecture-folder
+reconciliation count as filed only when their independently reviewed, owner-authorized carrying PR merges into
 `main`. An unmerged branch copy is a candidate. No new runtime verdict or defect closure follows
 from source reconciliation. In particular, the guides document B2's exact read-only-write
 exceptions and distinguish the separate path-ID-based portfolio-advisor endpoint from the

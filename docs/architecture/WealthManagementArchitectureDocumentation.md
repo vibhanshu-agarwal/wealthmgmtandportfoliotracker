@@ -1,5 +1,11 @@
 # Architecture Overview
 
+> **Historical reference — classified 2026-09-26 UTC.** Earlier architecture snapshot, including obsolete runtime/module omissions. Use [Detailed architecture v2](WealthManagementArchitectureDocumentation_v2.md); the original narrative below is historical.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 ## Purpose
 
 This document describes the overall architecture of the Wealth Management & Portfolio Tracker application, including the technologies in use, how the code is organized, and how the frontend integrates with the backend.

@@ -1,5 +1,11 @@
 # LocalStack + Terraform Migration Proposal
 
+> **Historical reference — classified 2026-09-26 UTC.** April 2026 design proposal, not a current request to migrate Docker stores to RDS/ElastiCache or remove Compose services. Its original proposal status and sketches below are historical.
+>
+> Start with the [architecture index](README.md) and [Current operations](../runbooks/CURRENT_OPERATIONS.md).
+> The body below retains its original context; it is not fresh source/live proof and does not
+> authorize cloud/secret access, dispatch, repair, state/offset deletion, deployment or cleanup.
+
 **Date:** 2026-04-11
 **Status:** Proposal — awaiting review
 **Author:** Kiro
