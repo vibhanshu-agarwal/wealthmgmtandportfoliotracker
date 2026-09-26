@@ -12,7 +12,11 @@ only when the carrying PR merges into main. Runtime/demo acceptance remains gove
 The review follow-up records the source-confirmed
 [advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
 Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
-not cover it. Owner disposition is pending, with no code/live operation authorized here.
+not cover it. The architecture review also confirms an OPEN
+[public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
+Price-write treatment has priority; owner disposition is pending, with no code/live operation
+authorized here. The test gap is not a proven current bypass.
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and
@@ -40,8 +44,8 @@ historical proof is changed. Current runtime/demo status is governed by the
 post-#320 suite/cleanup result. Older baseline paragraphs below retain their historical dates;
 they are not fresh serving-state assertions. The backlog index records the independent review;
 the audit is filed through #324 (`6f1e5700`).
-The later E2E source-review follow-up adds one OPEN advisor-security entry against `main@8aa4035b`,
-bringing the index to 31 directories / 21 OPEN without changing the original 30 dispositions.
+The later flow/architecture review adds three OPEN security/coverage entries against `main@8aa4035b`,
+bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

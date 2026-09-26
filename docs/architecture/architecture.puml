@@ -10,6 +10,7 @@ node "Azure demo application boundary" {
   component "Internal ingress\nmarket-data-service / MVC" as Market
   component "Internal ingress\ninsight-service / MVC" as Insight
   component "Separate market refresh Job\n08:00 UTC schedule" as Refresh
+  component "Separate market repair Job\nmanual trigger only / fenced MM.NS repair" as Repair
 }
 
 database "External PostgreSQL\nidentity, holdings/version, price projection/history" as Postgres
@@ -30,17 +31,17 @@ Gateway --> Market : /api/market/**
 Gateway --> Insight : /api/insights/**, /api/chat/**
 Portfolio --> Postgres : transactional holdings / analytics
 Portfolio --> FX : available FX conversion
-Market --> Mongo : stored reads / approved writes
+Market --> Mongo : stored reads / public write lacks operator gate
 Market --> Kafka : manual-write observations
 Refresh --> Yahoo : scheduled price fetch
 Refresh --> Mongo : persist observations
 Refresh --> Kafka : keyed price publication
+Repair --> Mongo : fenced legacy MM.NS to M&M.NS repair
 Kafka --> Portfolio : portfolio-group projection
 Kafka --> Insight : insight-group cache updates
 Portfolio --> Kafka : rejected/exhausted records to market-prices.DLT
 Insight --> Redis : prices / observation window / caches
 Insight --> AI : optional resolution / sentiment / advisor
-Insight ..> Portfolio : path-ID advisor fetch if target URL configured
 Gateway ..> Telemetry : observations
 Portfolio ..> Telemetry : observations
 Market ..> Telemetry : observations
@@ -57,6 +58,14 @@ note bottom of Insight
   Path-ID advisor has an OPEN source-confirmed IDOR.
   Azure source omits the portfolio URL (default localhost:8081).
   Live reachability is unverified; missing wiring is not authorization.
+  Advisor-to-Portfolio link omitted: not wired by this Azure source.
+  Compose / retained AWS source supplies the target URL instead.
+end note
+note bottom of Gateway
+  Internal seed/reset routes are public, no JWT/origin/route limiter.
+  Downstream shared internal key gates those operations.
+  Public market POST permits ordinary signup accounts (OPEN defect).
+  Manual demo-reset response carries an opaque replica token, not that key.
 end note
 note bottom of Frontend
   Logical source topology, not a live cloud inventory.

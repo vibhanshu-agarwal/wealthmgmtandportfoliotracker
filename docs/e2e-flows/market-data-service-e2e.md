@@ -35,6 +35,14 @@ reads MongoDB through `AssetPriceRepository`.
 | `POST /api/market/prices/{ticker}` | Manual price update from a JSON decimal body; persists and submits an asynchronous Kafka send. A 200 does not prove broker acknowledgment. This is a write, not part of normal page reads. |
 | `GET /api/market/health` | Public service-UP handler; not a Yahoo-price or Kafka-delivery acceptance test. |
 
+**Authorization defect:** the public price POST has no operator role or internal-key check.
+Ordinary signed-in accounts, including self-signups, are permitted; the gateway's read-only
+filter blocks `ro=true` accounts only. The service's key filter covers `/api/internal/**`, not
+this path. It alters shared data; no frontend page calls it. The OPEN
+[price-write finding](../todos/backlog/public-market-price-write-authorization/README.md) records
+the fully source-wired Azure route and the untested deployed exposure. Describing a manual write
+here is not a claim that an application approval gate protects it.
+
 [MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)
 includes nullable `currentPrice`, `quoteCurrency`, observation/reference timestamps
 and nullable change fields. Missing requested tickers have null data fields, not a fabricated zero
@@ -118,6 +126,12 @@ The AWS overlay disables this adapter. Retaining AWS configuration does not esta
 scheduled AWS refresh or authorize reactivation.
 
 ## 5. Seeding and startup: separate from real market observations
+
+The separate manual-only Azure `market-data-repair-job` selects
+[MarketDataRepairJobRunner](../../market-data-service/src/main/java/com/wealth/market/MarketDataRepairJobRunner.java)
+for the fenced legacy `MM.NS` to `M&M.NS` Mongo repair. It enables repair, omits the refresh-runner
+property, has one replica/completion, a 300-second timeout and no Job retry. It does not implement
+automatic cold-start repair or grant authority to run it; source wiring is not a new repair result.
 
 - [LocalMarketDataSeeder](../../market-data-service/src/main/java/com/wealth/market/LocalMarketDataSeeder.java)
   is `@Profile("local")` and checks `market.seed.enabled`; it reads the local fixture and

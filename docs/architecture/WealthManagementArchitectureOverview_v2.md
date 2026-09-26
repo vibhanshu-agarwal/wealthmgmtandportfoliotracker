@@ -43,7 +43,9 @@ ingresses are internal to the Container Apps environment. Internal ingress is no
 per-endpoint caller authorization.
 
 A separate Container Apps Job runs market refresh at `0 8 * * *` (08:00 UTC); the market API
-does not rely on a timer while scaled to zero. Azure OpenAI is the selected AI integration.
+does not rely on a timer while scaled to zero. A distinct manual-only `market-data-repair-job`
+is configured for the fenced Mongo `MM.NS` to `M&M.NS` repair, not normal refresh; this audit
+does not authorize running it. Azure OpenAI is the selected AI integration.
 External PostgreSQL, MongoDB, Kafka and Redis connections are injected, not provisioned as
 RDS/ElastiCache by the Azure stack.
 
@@ -58,10 +60,13 @@ Browser HTTP calls go through the gateway. Signup creates credentials and an emp
 Holdings replacement is a complete desired-set transaction with an expected version; conflicts
 are rejected rather than silently retried. Market reads serve MongoDB data, not live Yahoo calls.
 
-The refresh runner and approved manual market writes publish `PriceUpdatedEvent` on
+The refresh runner and the current manual market-write path submit `PriceUpdatedEvent` on
 `market-prices`, keyed by ticker. Portfolio projects prices/history to PostgreSQL; insight
 maintains Redis observations and summaries. These stores are eventually consistent. There is
 no established MongoDB-to-Kafka transactional outbox or cross-store exactly-once guarantee.
+The public price POST lacks operator authorization: ordinary self-signup accounts can change
+shared prices. This is an OPEN [security defect](../todos/backlog/public-market-price-write-authorization/README.md),
+not a write restricted by an approval gate; deployed exploitability was not tested live.
 
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model

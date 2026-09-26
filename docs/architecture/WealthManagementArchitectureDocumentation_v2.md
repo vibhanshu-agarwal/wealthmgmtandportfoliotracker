@@ -15,7 +15,7 @@ Static export means API origins are configured at frontend build time; there is 
 server proxy or frontend-owned credential store.
 
 [Azure Terraform](../../infrastructure/terraform/azure/main.tf) defines Static Web Apps,
-ACR, a Container Apps environment, four service Container Apps, a scheduled refresh Job,
+ACR, a Container Apps environment, four service Container Apps, scheduled refresh and manual repair Jobs,
 Azure OpenAI and telemetry/budget resources. The gateway ingress is external; downstream
 ingresses are internal. Non-seed application target ports are 8080; internal service URLs
 use ingress port 80, not bare-host port 8081/8082/8083.
@@ -31,7 +31,7 @@ code nor LocalStack examples prove current rollback feasibility.
 | Store | Writers/readers and meaning |
 |---|---|
 | PostgreSQL | Gateway authentication reads/writes user/credential data; portfolio owns portfolio/holding transactions, versions, projected market prices and history; Flyway migrations live with portfolio |
-| MongoDB | Market service and its refresh runner persist stored market prices/reference observations; user page loads read this data |
+| MongoDB | Market service/refresh persist shared prices/references; the separate fenced repair runner operates on legacy `MM.NS` documents; user page loads read this data |
 | Kafka | `market-prices` carries keyed `PriceUpdatedEvent` observations to independent consumers; portfolio uses `market-prices.DLT` for rejected/exhausted records |
 | Redis | Gateway limiter and presence state; insight prices/observation window, tracking and AI caches; portfolio cache backend depends on profile |
 
@@ -63,8 +63,22 @@ See the [gateway flow](../e2e-flows/api-gateway-service-e2e.md) and its source l
 - The `ro` claim blocks protected mutations **except** exact B2 PUT paths
   `/api/portfolio/holdings` and `/api/portfolio/demo-reset`. It is not "all saves forbidden".
   Manual reset additionally enforces its fixed showcase identity and internal authorization.
+  Its response exposes an opaque `X-Gateway-Replica-Token`, not the internal API key; missing
+  configured internal key returns 503.
 - Presence is advisory, not a lock. Multi-user isolation acceptance applies to the tested
   portfolio/session paths, not automatically to every insight endpoint.
+
+Direct `/api/internal/**` seed/reset routes are publicly forwarded by the gateway without JWT,
+origin verification or a prod route rate limiter. The downstream shared internal key is the
+application authorization gate (wrong/missing supplied key 403, blank configured key 503), not
+private ingress or layered user authorization. CORS does not stop non-browser callers.
+
+The public `POST /api/market/prices/{ticker}` sits outside that key filter. Normal `ro=false`
+accounts, including public signups, pass the gateway's authentication/read-only checks; no
+operator role/key check exists in its controller/service. It changes shared prices and submits
+events, not just caller-owned data. This OPEN
+[price-write authorization defect](../todos/backlog/public-market-price-write-authorization/README.md)
+has source-wired Azure routing, but was not tested live. The frontend has no caller for it.
 
 The separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to
 portfolio. Its controller/service do not compare that ID with the authenticated gateway subject.
@@ -113,6 +127,13 @@ An unrecovered failure in any Yahoo batch discards that fetch's accumulated pric
 the refresh catches it and can exit normally without an update. A Kafka send failure instead
 fails the Job (exit 1, no ACA Job retry) after Mongo writes, which are not rolled back. New refresh
 documents have null quote currency; manual HTTP writes do not wait for a Kafka acknowledgment.
+
+The separate manual-only `market-data-repair-job` selects
+[MarketDataRepairJobRunner](../../market-data-service/src/main/java/com/wealth/market/MarketDataRepairJobRunner.java)
+and [MongoMmNsRepairService](../../market-data-service/src/main/java/com/wealth/market/repair/MongoMmNsRepairService.java)
+for the fenced legacy `MM.NS` to `M&M.NS` Mongo repair. Terraform enables the repair property,
+omits the refresh-runner property, sets one replica/completion, a 300-second timeout and no Job
+retry. It is not a scheduled refresh, general price editor or newly approved repair execution.
 
 The shared [event](../../common-dto/src/main/java/com/wealth/market/events/PriceUpdatedEvent.java)
 carries observation metadata. Publications are keyed by ticker, which orders records within

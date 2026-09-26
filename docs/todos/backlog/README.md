@@ -13,10 +13,12 @@ the E2E-audit scope note; Claude's review of `196c9d0d` does not itself review t
 Claude subsequently reviewed `196c9d0d..fe84a444` and confirmed that `fe84a444` clears the conditional acceptance.
 
 **Source-review follow-up — 2026-09-26 UTC:** the E2E guide review against `main@8aa4035b`
-adds one OPEN [advisor authorization defect](portfolio-advisor-cross-user-authorization/README.md).
+adds three OPEN findings: [advisor authorization](portfolio-advisor-cross-user-authorization/README.md),
+[public price-write authorization](public-market-price-write-authorization/README.md) and
+[header-spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md).
 The original 30-item audit is filed through #324 (`6f1e5700`); its independent acceptance does not
 cover this later addition, which awaits follow-up review/publication under the rule above.
-No existing disposition changes. Current totals are 31 directories: 8 fixed, 2 superseded, 21 open.
+No original disposition changes. Current totals are 33 directories: 8 fixed, 2 superseded, 23 open.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
@@ -31,8 +33,8 @@ additional implementations to perform.
 |---|---:|---|
 | CLOSED — fixed/completed | 8 | The original work has delivered source or accepted historical completion evidence; closure is limited to that item's scope/cut. |
 | CLOSED — superseded | 2 | The architecture/premise was retired. Do not implement the old fix plan. |
-| OPEN | 21 | The original 20 residual items plus the later source-confirmed advisor authorization defect. Includes deferred, parked, mitigated and partially delivered items. |
-| **Total directories** | **31** | Original audit of 30 plus one source-review addition. ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
+| OPEN | 23 | The original 20 residual items plus two source-confirmed authorization defects and one security regression-proof gap. Includes deferred, parked, mitigated and partially delivered items. |
+| **Total directories** | **33** | Original audit of 30 plus three source-review additions. ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
 
 Non-blocking, accepted-for-demo, not observed, and unverified are **not** synonyms for fixed.
 Missing acceptance evidence leaves an item open with that precise residual; it does not mean
@@ -71,11 +73,13 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Demo portfolio/ticker integrity](demo-portfolio-and-ticker-integrity/README.md) | **Partially resolved.** Independent 159-asset demo seed, BTC/MM repair, catalog packaging and freshness delivered. Tata successor/allocation remains an open product/data decision. |
 | [Full E2E coverage audit](e2e-coverage-audit-post-asset-picker/README.md) | **Follow-on audit.** Inventory exclusions/vacuity and complete cross-suite acceptance matrix; demo suite is evidence input, not this audit's closure. |
 | [EventBridge warming](eventbridge-not-working/README.md) | **Parked AWS standby work.** Several old source prerequisites fixed; reactivation remains a cost/operations decision with fresh prerequisites, not an active defect claim. |
+| [Gateway user-header spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md) | Source strips/overrides identity and a unit test checks injection, but named spoofing tests assert only non-401. Add direct forwarded-header assertions; no current bypass is claimed. |
 | [Kafka consumer wake/scaling](kafka-consumers-have-no-scale-rule/README.md) | No Kafka scaler; consumers explicitly scale to zero. Decide idle-liveness policy and assess retention; session warm-up is not autonomous wake. |
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
 | [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **Source-confirmed IDOR; owner disposition pending.** Path-selected user ID is forwarded without subject comparison. Azure URL/reachability is unverified; missing source wiring is not an authorization control. |
+| [Public market-price write authorization](public-market-price-write-authorization/README.md) | **Source-confirmed shared-data write hole; urgent owner disposition pending.** Normal self-signup accounts can alter shared Mongo prices and submit Kafka events. Azure URL wiring exists; no live exploit was tested. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |

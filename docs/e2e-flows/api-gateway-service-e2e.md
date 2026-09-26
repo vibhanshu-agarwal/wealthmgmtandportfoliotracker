@@ -96,6 +96,11 @@ which permit requests without a JWT. Their downstream `InternalApiKeyFilter` req
 API key; an "internal" route name is not a private-network guarantee. They are operational write
 surfaces, not ungated visitor APIs. Listing a route here grants no
 permission to seed, reset or repair live data.
+These direct prod routes have no route rate limiter and bypass origin verification; shared-key
+authorization is not JWT authorization or private ingress. The ordinary public market price POST
+is different: it is authenticated/rate-limited but **not operator-authorized**, and the internal-key
+filter does not cover it. See the OPEN
+[shared-price write defect](../todos/backlog/public-market-price-write-authorization/README.md).
 
 ## 4. Throttling and failure behavior
 

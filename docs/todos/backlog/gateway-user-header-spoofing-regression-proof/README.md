@@ -1,0 +1,46 @@
+# Gateway user-header spoofing regression proof
+
+> **Approval boundary:** this records a test-evidence gap, not a new live spoofing test or code
+> change. Implementation, live access and documentation publication require their relevant approval.
+
+**Status:** OPEN — missing direct spoofed-header assertions, not a confirmed current bypass.
+**Priority:** Medium (security regression coverage).
+**Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
+**Implementation:** not started. Existing source and accepted demo evidence are not invalidated
+by this missing test; neither is complete header-sanitization regression coverage established.
+
+## Exact gap and existing coverage
+
+[JwtAuthenticationFilter](../../../../api-gateway/src/main/java/com/wealth/gateway/JwtAuthenticationFilter.java)
+removes caller `X-User-Id` headers on protected and permit-all routed paths, and sets the verified
+JWT subject on protected paths. This behavior is present in source.
+
+The "Spoofing Prevention" cases in
+[JwtFilterIntegrationTest](../../../../api-gateway/src/test/java/com/wealth/gateway/JwtFilterIntegrationTest.java)
+send a spoofed header, but route to an absent upstream and only assert a non-401 status. That
+does not inspect the forwarded identity or prove the spoofed value was removed. Similar
+[preservation cases](../../../../api-gateway/src/test/java/com/wealth/gateway/CorsAndAuthPreservationPropertyTest.java)
+also assert status rather than downstream headers.
+
+There **is** an injection assertion in
+[JwtAuthenticationFilterChainTest](../../../../api-gateway/src/test/java/com/wealth/gateway/JwtAuthenticationFilterChainTest.java):
+it captures the forwarded user ID and checks the subject, but supplies no spoofed input. Do not
+rewrite this gap as "no user-ID injection test" or as a live identity-spoofing exploit.
+Reset-specific header tests are separate from this general filter's routed-path contract.
+
+## Future acceptance requirements
+
+Use a local capturing chain/upstream to supply a conflicting caller header (including duplicate
+values), then assert the complete forwarded header collection contains exactly the verified
+subject on protected requests. On routed permit-all internal/health paths, assert it is absent
+and no subject is injected. Check missing/invalid JWT protected requests fail closed without a
+downstream call. Keep controller-only requests distinct from Gateway GlobalFilter routes.
+
+Prove the new tests fail under the relevant removal/override regressions rather than merely
+changing response status; account for `headers.set` already replacing values on protected paths.
+Run the selected local tests and obtain independent review before closing this item. No such
+new test or mutation check was implemented/run by this documentation audit.
+
+See [test inventory](../../../architecture/IntegrationTestCases.md),
+[gateway flow](../../../e2e-flows/api-gateway-service-e2e.md) and the
+[backlog index](../README.md).
