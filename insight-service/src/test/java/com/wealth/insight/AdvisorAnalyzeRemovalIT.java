@@ -47,6 +47,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * calls and whichever user the path names, nothing may reach portfolio-service. A recording stub
  * stands in for portfolio-service; a control call through {@link InsightService} proves the stub
  * sees a real forward, so the "nothing reached it" assertion cannot pass vacuously.
+ *
+ * <p>The requests go to insight-service directly, and nothing on this path reads {@code X-User-Id},
+ * so the three caller classes exercise the same code. The loop records the intent that no caller,
+ * including one with no identity or the read-only showcase, gets an exception; the 404 for all of
+ * them is what makes a missing identity fail closed. Gateway authentication is not exercised here.
+ *
+ * <p>The structural test covers path variables whose name contains "user" and handler beans
+ * holding an {@link InsightService} field. A handler that built its own portfolio-service client
+ * would evade it; the guard targets accidental re-exposure, not a deliberate workaround.
  */
 @Tag("integration")
 @Testcontainers
@@ -142,7 +151,7 @@ class AdvisorAnalyzeRemovalIT {
         assertSoftly(softly -> {
             softly.assertThat(answered).as("advisor requests that were answered").isEmpty();
             softly.assertThat(getNot404)
-                    .as("GET must be an unmapped 404 for every caller and target, with no existence signal")
+                    .as("GET must be a plain 404 for every caller and target")
                     .isEmpty();
             softly.assertThat(forwarded)
                     .as("X-User-Id values forwarded to portfolio-service besides the control call")
@@ -151,7 +160,7 @@ class AdvisorAnalyzeRemovalIT {
     }
 
     @Test
-    void noInsightsHandlerTakesAUserFromThePathOrHoldsThePortfolioForwardingService() {
+    void noInsightsHandlerHasAUserPathVariableOrHoldsThePortfolioForwardingService() {
         Map<RequestMappingInfo, HandlerMethod> insightMappings = new LinkedHashMap<>();
         handlerMapping.getHandlerMethods().forEach((info, handler) -> {
             if (info.getPatternValues().stream().anyMatch(p -> p.startsWith("/api/insights"))) {
