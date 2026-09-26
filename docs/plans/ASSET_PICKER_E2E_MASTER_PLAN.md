@@ -1,14 +1,21 @@
 # Asset Picker — E2E Master Plan to Production
 
+**Service-flow documentation reconciliation — 2026-09-26 UTC:** the four guides in
+[E2E flows](../e2e-flows/) are audited against source at `main@8aa4035b`. They distinguish
+browser requests, service writes, refresh jobs and event projections; this is documentation
+correction, not new operational proof or Spec A/B1/B2 completion. An unmerged branch copy is
+a candidate; filing requires independent review and owner-authorized publication, and occurs
+only when the carrying PR merges into main. Runtime/demo acceptance remains governed by the
+[demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) and is unchanged by this audit.
+
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
 [ROADMAP](../../ROADMAP.md), [README](../../README.md) and
-[enhancements v5](../../roadmap_enhancements_v5.md) are prepared against `main@5d559478`.
+[enhancements v5](../../roadmap_enhancements_v5.md) were reconciled against `main@5d559478`
+and are filed through merged #326 (`8aa4035b`).
 They distinguish delivered picker/analytics capabilities from open residuals and three deferred
 owner requests: per-user Sharpe/Sortino, richer FA/TA chat and additional charts. v1–v4 remain
 historical snapshots. No feature implementation, new operational proof or Spec A/B1/B2 task
-completion is claimed. Filing requires independent review and owner-authorized publication/
-merge; an unmerged copy is a candidate. Runtime/demo acceptance remains governed by the
-demo dashboard; this documentation candidate does not advance it.
+completion is claimed. This documentation filing does not advance runtime/demo acceptance.
 
 **Runbook process reconciliation — 2026-09-26 UTC:** the
 [runbook index](../runbooks/README.md) classifies all 24 existing runbooks; the 2 reusable
@@ -17,7 +24,7 @@ remain unchanged. [Current operations](../runbooks/CURRENT_OPERATIONS.md) record
 demo startup and restart boundaries. No new operational proof or Spec A/B1/B2 completion is
 claimed. This independently reviewed reconciliation is filed through #325 (`5d559478`).
 The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains current acceptance and the
-remaining freeze work; the roadmap/README/v5 filing is separate.
+remaining freeze work; the service-flow documentation reconciliation is separate.
 
 **Backlog process reconciliation — 2026-09-26 UTC:** the
 [backlog index](../todos/backlog/README.md) records 8 fixed/completed closures, 2 superseded
