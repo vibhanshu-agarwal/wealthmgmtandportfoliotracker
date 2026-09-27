@@ -2,8 +2,9 @@
 
 **Operational approval required:** the warm-up and browser reader contact the deployed demo.
 Running the offline tests below does not authorize sign-in, chat, edits, a live rehearsal,
-cloud/secret access, deployment or cleanup. A new carrying PR needs owner approval to publish
-and merge. Until merged, this kit is a candidate, not the durable restart source.
+cloud/secret access, deployment or cleanup. On 2026-09-27 UTC the owner approved publication
+and a merge commit once all applicable CI checks are green, with no deployment or live operations.
+The kit is filed when its carrying PR merges into main; unmerged copies are candidates.
 
 Use the [operator guide](../../docs/runbooks/DEMO_OPERATOR.md) and
 [freeze/restart handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). Do not run a live
@@ -31,8 +32,8 @@ The private operator draft (`c2aea2f017f8dbf5874eb8b89b6eec67eb58e6e7ed5af54a1cc
 followed a rehearsed copy (`0a0005a7bccdd741ce9dc6ebea50ca939c39c877d993207e019fb8f5b8594d11`).
 It is not copied as current instructions: its account wording, revision table and targeted-check
 status had become stale. The new guide preserves the edit/reverse/verify sequence but reconciles
-those facts. **Independent review cleared the corrections at `0ad791ae`; publication/merge
-remains pending owner approval, and the new guide has not been live-rehearsed.** Acceptance
+those facts. **Independent review cleared the corrections at `0ad791ae`; publication and
+conditional green-CI merge are owner-approved, and the new guide has not been live-rehearsed.** Acceptance
 of the private draft does not automatically accept this rewrite.
 
 The fixtures contain two invented holdings only, not private account data. The seeded E2E

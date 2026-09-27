@@ -3,10 +3,11 @@
 > **Publication scope:** header tests (#331) and retained-advisor source cleanup (#332) are
 > merged; their documentation is filed through #333 (`6e968c20`). On 2026-09-27 UTC the owner
 > authorized the roadmap-matrix/consensus and Git-only requirement correction, now filed through
-> #334 (`cedbb5af`). The later operator-kit and freeze/restart handoff is locally prepared,
-> with review corrections cleared at `0ad791ae`; its own owner approval for publication/merge
-> remains pending. Prior approval
-> does not cover this new bundle, feature implementation, deployment or artifact cleanup.
+> #334 (`cedbb5af`). The operator-kit and freeze/restart handoff was cleared at `0ad791ae`.
+> On 2026-09-27 UTC the owner separately approved its publication and merge commit once all
+> applicable CI checks are green. Filing follows its carrying PR's merge into main; unmerged
+> copies remain candidates. No feature implementation, deployment, live operation or cleanup
+> is authorized by this publication approval.
 > Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
 > operations and deployment remain separately gated. Gate E is skipped by owner decision, not
 > performed. Unmerged branch copies remain candidates; a correction counts as filed only when
@@ -207,7 +208,9 @@ The [backlog audit](../todos/backlog/README.md) is filed through #324 (`6f1e5700
 [runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Header/advisor-cleanup
 documentation is filed through #333 (`6e968c20`). The owner's 2026-09-27 UTC authorization covers
 the matrix/consensus and Git-only requirement correction, filed through #334 at `cedbb5af`
-(2026-09-27 07:33:20 UTC). The new operator-kit/restart package needs its own review and publication approval.
+(2026-09-27 07:33:20 UTC). The operator-kit/restart package was reviewer-cleared at `0ad791ae`;
+the owner separately approved publication and conditional green-CI merge on 2026-09-27 UTC.
+Its filing follows the carrying PR's merge into main, not private retention.
 #323 (`d515aa5b`, 2026-09-25) filed the accepted suite and cleanup status. The post-#320 suite and
 three-user cleanup are complete under approvals R and C; the verdict remains
 `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
@@ -324,7 +327,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, and matrix/Git-only requirement #334 (`cedbb5af`) are filed. The five-helper kit and reconciled restart guide are reviewer-cleared at `0ad791ae`; owner-authorized publication/merge is pending | File the [kit](../../scripts/demo/README.md) and [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md); verify merged-main clean checkout and assign maintenance responsibilities |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, and matrix/Git-only requirement #334 (`cedbb5af`) are filed. The kit/restart guide is cleared at `0ad791ae`; publication and conditional green-CI merge are owner-approved. It is filed when the carrying PR merges into main | Verify the filed [kit](../../scripts/demo/README.md) and [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md) from clean main; assign maintenance responsibilities |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted

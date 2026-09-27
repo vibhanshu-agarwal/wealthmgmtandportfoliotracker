@@ -2,12 +2,13 @@
 
 **Owner approval required before live execution:** approve a bounded session, account and target
 before health wakes, sign-in, chat or edits. This guide creates no accounts, grants no deployment
-or recovery authority, and does not authorize cleanup. Publication/merge of this new kit also
-requires approval. An unmerged copy is a candidate.
+or recovery authority, and does not authorize cleanup. The owner approved this kit's publication
+and conditional green-CI merge commit on 2026-09-27 UTC, not live execution. An unmerged copy
+is a candidate; filing follows the carrying PR's merge into main.
 
 **Prepared:** 2026-09-27 UTC from the prior reviewed operator flow and merged status at
 `main@cedbb5af`. Independent review of `1fecc1f8` required corrections, cleared at `0ad791ae`
-on 2026-09-27 UTC. Publication/merge remains pending owner approval. The reconciled guide
+on 2026-09-27 UTC. Publication and conditional green-CI merge are owner-approved. The reconciled guide
 has **not been live-rehearsed**.
 Historical acceptance and evidence limits remain in the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). The

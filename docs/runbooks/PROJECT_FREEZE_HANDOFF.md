@@ -1,8 +1,10 @@
 # Git-only project freeze and restart handoff
 
-**Owner approval required before publication/merge or operations:** this is a locally prepared
-restart package, not authority for live access, credentials, cloud reads, dispatch, deployment,
-rotation, shutdown or cleanup. The next publication decision is for this new bundle.
+**Approval scope — publication only:** on 2026-09-27 UTC the owner authorized publishing this
+restart package and merging with a merge commit once all applicable CI checks are green:
+"Publish the restart-kit bundle and merge with a merge commit once all applicable CI checks
+are green. No deployment or live operations." This is not authority for live access,
+credentials, cloud reads, dispatch, deployment, rotation, shutdown or cleanup.
 Required artifacts count as durable only when their carrying PR merges into main.
 
 **Source cut:** 2026-09-27 UTC, `main@cedbb5af` (PR #334). This task inspects local source and
@@ -49,8 +51,8 @@ a safe rollback command.
 ## 2. Required artifacts now in this candidate bundle
 
 - [Operator guide](DEMO_OPERATOR.md): secure sign-in, warm-up, baseline hard stop, edit/reverse
-  and exact restore. Independent review cleared the corrections at `0ad791ae`; publication/merge
-  is pending owner approval. The rewritten guide has not been re-rehearsed.
+  and exact restore. Independent review cleared the corrections at `0ad791ae`; publication
+  and conditional green-CI merge are owner-approved. The guide has not been re-rehearsed.
 - [Preserved kit and hashes](../../scripts/demo/README.md): warm-up, its localhost test/mock,
   signed-in snapshot reader and verifier. Helpers are unchanged; no app implementation.
 - Configuration examples already tracked: [.env.example](../../.env.example) and
@@ -138,8 +140,9 @@ calling the Git-only handoff filed and verified. No live readiness is implied by
 
 ## 5. Remaining freeze sequence
 
-1. Review cleared at `0ad791ae`; obtain owner approval for publication and merge. This later
-   recording update changes review status and the two non-blocking wording notes only.
+1. Review cleared at `0ad791ae`; owner approved publication and a conditional green-CI merge
+   commit. Filing follows the carrying PR's merge into main. Later recording updates change
+   review/publication status and the two non-blocking wording notes only.
 2. Confirm offline artifacts/links from a clean checkout of the merged result.
 3. Settle the maintenance decisions above.
 4. Brainstorm the LinkedIn, resume, PPT and video package with the owner and Claude **before**
