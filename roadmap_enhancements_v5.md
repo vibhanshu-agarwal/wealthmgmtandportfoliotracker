@@ -15,6 +15,40 @@ The project is a portfolio/demo application. Feature development is intended to 
 or longer after the remaining freeze work. The three new owner requests below are deliberately
 brief and unscheduled: enough context to restart after months or a year, not detailed designs.
 
+**Owner priority update:** 2026-09-27 UTC. The prioritization matrix is restored for restart
+planning: per-user Sharpe/Sortino is **High** priority; every other open roadmap goal is
+**Medium**. Priorities do not authorize implementation or commit delivery dates.
+
+## Prioritization Matrix — Resume Here
+
+Closed capabilities remain visible so they are not implemented again. Priority applies only to
+remaining work. Importance/usability/ease carried from v4 are historical qualitative ratings,
+not new estimates; `TBD` means the feature has not been designed or estimated. Medium-priority
+rows are not a committed implementation sequence.
+
+| # | Feature | Source | Importance | Usability | Ease | Priority | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | Production Rate-Limiting | v4 | High | Low | Medium | — | **CLOSED** — delivered; accepted residuals remain separate |
+| 2 | New User Signup / Per-user Authentication | v4 | High | High | Medium–High | — | **CLOSED** — authentication delivered; personalization is row 10 |
+| 3 | Observability & Application Insights | v4 Item A | Medium | Low | Medium | — | **CLOSED** — accepted historical delivery scope |
+| 4 | **Asset Picker (curated universe)** | v4 Item B / Spec A–B1–B2 | High | High | Low | — | **CLOSED** — delivered, deployed and accepted; provider/corporate-action residuals are separate |
+| 5 | Portfolio Analytics / Demo-critical UI | Later delivery / #320 | — | — | — | — | **CLOSED within recorded scope** — not a clean PASS or risk-ratio delivery |
+| 6 | **Per-user Sharpe Ratio and Sortino Ratio** | New R1 | High | High | TBD | **High** | **OPEN / DEFERRED — NOT STARTED** |
+| 7 | More Intelligent FA/TA Chatbot | New R2 | TBD | TBD | TBD | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
+| 8 | More Engaging Charts and Analysis | New R3 | TBD | TBD | TBD | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
+| 9 | Custom Asset & Portfolio Management | v4 Item C / retained goal | Medium | High | Low | **Medium** | **OPEN / UNSCHEDULED** |
+| 10 | User Settings / Personalization | v4 / retained goal | Medium | Medium | Medium | **Medium** | **OPEN / UNSCHEDULED** |
+| 11 | Multi-provider Market Data | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / UNSCHEDULED** |
+| 12 | AI Service Contract Evolution | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / UNSCHEDULED** |
+| 13 | Advanced Agent Workflows | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / EXPLORATORY** |
+| 14 | Database Least Privilege | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN — future hardening** |
+| 15 | AWS Reactivation | Retained goal | TBD | TBD | TBD | **Medium** | **PARKED** — not a current defect or ready rollback |
+
+Start with R1 when feature development resumes. Its data-history prerequisites still need
+assessment. Sections 2–3 below preserve the brief scope and restart context for every open row;
+the [engineering backlog](docs/todos/backlog/README.md) retains separate defect/proof priorities.
+This matrix does not downgrade security/backlog work or turn accepted limitations into fixes.
+
 ## 1. What Is Already Delivered
 
 | Item carried from v4 / later delivery | Current disposition and boundary |
@@ -27,13 +61,15 @@ brief and unscheduled: enough context to restart after months or a year, not det
 
 `DELIVERED` means the named capability exists with its recorded acceptance; it does not mean
 every related defect is closed. The [audited backlog](docs/todos/backlog/README.md) records
-8 fixed/completed closures, 2 superseded closures and 20 open directory items. Its separate
+11 fixed/completed closures, 2 superseded closures and 20 open directory items at `main@6e968c20`.
+These 33 engineering directories are not the 15 roadmap matrix rows. Its separate
 inline TODO inventory is not added to those counts. The dashboard retains accepted demo debt
 and inconclusive/unverified cases, including model provenance/resolution and FX/fallback edges.
 
 ## 2. New Owner Requests — Deferred, Not Started
 
-No priority order, target date, implementation plan or detailed design is committed. Reassess
+Owner-set priorities are **High for R1** and **Medium for R2/R3**. No target date,
+implementation plan or detailed design is committed. Reassess
 data sources, dependencies and product goals when the owner resumes the project.
 
 ### R1 — Per-user Sharpe Ratio and Sortino Ratio
@@ -60,22 +96,24 @@ and available data rather than adding charts for their own sake. Historical posi
 flows and benchmark alignment may be prerequisites; examples are not committed deliverables.
 
 These are the same R1–R3 entries in [ROADMAP.md](ROADMAP.md), not duplicate engineering backlog
-items or permission to start work. Formal risk-adjusted metrics are distinct from the existing
-AI advisor's generated risk score/concentration commentary.
+items or permission to start work. Formal risk-adjusted metrics are distinct from the former
+portfolio advisor's generated risk score/concentration commentary; that unused implementation
+was removed from source through #332, not replaced by Sharpe/Sortino analytics.
 
 ## 3. Existing Future Goals Retained, Not Silently Closed
 
-| Goal | Restart context |
-|---|---|
-| User settings/personalization | **OPEN / UNSCHEDULED.** Settings remains a placeholder. Persisted identity exists; per-user preferences/base currency/risk tolerance need product/schema design. |
-| Custom assets / expanded portfolio management | **OPEN / UNSCHEDULED.** Different from the delivered supported-catalog picker. Define ownership, valuation and provider/catalog coverage before accepting assets outside that universe. |
-| Multi-provider market data | **OPEN / UNSCHEDULED.** Yahoo remains an unofficial provider dependency. Symbol repairs mitigate symptoms, not provider risk; revisit supported providers, licensing, cost, coverage and failover. |
-| AI service contract evolution | **OPEN / UNSCHEDULED.** `insight-service` already exists. gRPC or a managed agent boundary is an optional evolution, not an undelivered service; justify it against richer analysis requirements. |
-| Advanced agent workflows | **OPEN / EXPLORATORY.** Rebalancing simulations, streaming news/sentiment and tax-aware ideas remain larger future directions, not delivered autonomous financial advice. Reassess data, risk/jurisdiction and operational guardrails. |
-| Database least privilege | **OPEN future hardening goal.** Revisit a scoped application role rather than owner credentials. No new role/credential inventory or migration was performed here. |
-| AWS reactivation | **PARKED, not a current defect or ready rollback.** Source remains, but identity/resources/DNS/model access/cost and current-build compatibility require a new approved assessment. |
+| Goal | Priority | Restart context |
+|---|---|---|
+| User settings/personalization | **Medium** | **OPEN / UNSCHEDULED.** Settings remains a placeholder. Persisted identity exists; per-user preferences/base currency/risk tolerance need product/schema design. |
+| Custom assets / expanded portfolio management | **Medium** | **OPEN / UNSCHEDULED.** Different from the delivered supported-catalog picker. Define ownership, valuation and provider/catalog coverage before accepting assets outside that universe. |
+| Multi-provider market data | **Medium** | **OPEN / UNSCHEDULED.** Yahoo remains an unofficial provider dependency. Symbol repairs mitigate symptoms, not provider risk; revisit supported providers, licensing, cost, coverage and failover. |
+| AI service contract evolution | **Medium** | **OPEN / UNSCHEDULED.** `insight-service` already exists. gRPC or a managed agent boundary is an optional evolution, not an undelivered service; justify it against richer analysis requirements. |
+| Advanced agent workflows | **Medium** | **OPEN / EXPLORATORY.** Rebalancing simulations, streaming news/sentiment and tax-aware ideas remain larger future directions, not delivered autonomous financial advice. Reassess data, risk/jurisdiction and operational guardrails. |
+| Database least privilege | **Medium** | **OPEN future hardening goal.** Revisit a scoped application role rather than owner credentials. No new role/credential inventory or migration was performed here. |
+| AWS reactivation | **Medium** | **PARKED, not a current defect or ready rollback.** Source remains, but identity/resources/DNS/model access/cost and current-build compatibility require a new approved assessment. |
 
-No automatic implementation order is assigned to this table. Exact residuals—such as provider
+All retained goals have Medium roadmap priority; their relative implementation order is not
+committed. Exact residuals—such as provider
 risk, Kafka idle wake policy, Tata corporate-action allocation, narrow-width overflow and
 verification-tool gaps—stay in their existing backlog entries; do not recreate repaired work.
 

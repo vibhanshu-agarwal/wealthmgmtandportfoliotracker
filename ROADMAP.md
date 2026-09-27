@@ -124,7 +124,9 @@ their old "not started" and "next" statements are not the current work queue.
 ## 🕒 Deferred Product Enhancements — Owner Requests (2026-09-26)
 
 All three requests are **DEFERRED / NOT STARTED**, for a much later revisit—months or a year away.
-They have no committed priority, delivery date, detailed design or implementation authorization.
+Owner priorities (2026-09-27 UTC): **R1 High**, **R2/R3 Medium**. They have no committed delivery
+date, detailed design or implementation authorization. Use the restored
+[v5 prioritization matrix](roadmap_enhancements_v5.md#prioritization-matrix--resume-here) when resuming.
 
 - **R1 — Portfolio Sharpe Ratio and Sortino Ratio:** add risk-adjusted performance analysis for
   each user's portfolio, distinguishing total volatility from downside risk. At restart, first
@@ -140,6 +142,10 @@ They have no committed priority, delivery date, detailed design or implementatio
   are examples to explore, not promised charts.
 
 ## 🎯 Future Architectural Goals
+
+All remaining goals below have **Medium** roadmap priority under the owner's 2026-09-27
+direction. The v5 matrix also retains parked AWS reactivation. These priorities do not change
+the engineering backlog's separate defect/security priorities or authorize implementation.
 
 - **AI service contract evolution:** `insight-service` already exists. Explore a typed, low-latency boundary (e.g. gRPC) or a managed agent service only when justified by the richer analysis use cases; this is not a missing fourth service or a committed redesign.
 - **Multi-Provider Market Data Aggregation:** The current baseline is **Yahoo Finance** (`external-market-data.provider: yahoo`). Add institutional-grade providers (e.g., **Alpha Vantage**, **Polygon.io**) behind an Adapter/Strategy abstraction layered on `ExternalMarketDataClient` to enable high-availability failover, cross-provider price reconciliation/anomaly detection, and vendor-lock-in avoidance.

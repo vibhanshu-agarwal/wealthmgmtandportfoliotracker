@@ -901,6 +901,12 @@ The backlog reconciliation is filed through #324 (`6f1e5700`).
 (`5d559478`) at source/status scope, not live verification.
 
 **Roadmap/README/v5 filing:** independently reviewed and filed through #326 (`8aa4035b`).
+**Owner-directed follow-up — 2026-09-27 UTC:** restore the
+[v5 prioritization matrix](../../roadmap_enhancements_v5.md#prioritization-matrix--resume-here),
+mark Asset Picker CLOSED, and retain the other/new goals. Sharpe/Sortino is High priority;
+all other open roadmap goals are Medium. This local correction needs review and separate
+publication approval; feature implementation stays deferred. It changes no accepted demo verdict
+or engineering-backlog disposition.
 None of these documentation filings completes the
 wider documentation pass, media package, maintenance handoff or private cleanup; the three
 new feature requests remain deferred and do not block the freeze.
