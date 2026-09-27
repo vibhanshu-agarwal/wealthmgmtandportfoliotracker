@@ -22,9 +22,16 @@ planning: per-user Sharpe/Sortino is **High** priority; every other open roadmap
 ## Prioritization Matrix — Resume Here
 
 Closed capabilities remain visible so they are not implemented again. Priority applies only to
-remaining work. Importance/usability/ease carried from v4 are historical qualitative ratings,
-not new estimates; `TBD` means the feature has not been designed or estimated. Medium-priority
-rows are not a committed implementation sequence.
+remaining work. These are lightweight planning judgments, not measured scores or delivery
+estimates. Existing v4 ratings are retained; missing ratings are filled with Codex's proposed
+classifications (2026-09-27 UTC), pending Claude's agreement or adjustments. No deep assessment
+is needed for this classification pass. Reassess the assumptions when restarting.
+
+- **Importance:** impact on analytical usefulness, reliability or the project's goals.
+- **Usability:** direct benefit to an end user, not how easy the feature is to implement.
+- **Ease:** ease of delivery; **High = easier**, **Medium = moderate**, **Low = harder**.
+- **Priority:** the owner's chosen work priority, independent of the other ratings. Medium rows
+  are not a committed implementation sequence; a High importance rating does not override them.
 
 | # | Feature | Source | Importance | Usability | Ease | Priority | Status |
 |---|---|---|---|---|---|---|---|
@@ -32,17 +39,36 @@ rows are not a committed implementation sequence.
 | 2 | New User Signup / Per-user Authentication | v4 | High | High | Medium–High | — | **CLOSED** — authentication delivered; personalization is row 10 |
 | 3 | Observability & Application Insights | v4 Item A | Medium | Low | Medium | — | **CLOSED** — accepted historical delivery scope |
 | 4 | **Asset Picker (curated universe)** | v4 Item B / Spec A–B1–B2 | High | High | Low | — | **CLOSED** — delivered, deployed and accepted; provider/corporate-action residuals are separate |
-| 5 | Portfolio Analytics / Demo-critical UI | Later delivery / #320 | — | — | — | — | **CLOSED within recorded scope** — not a clean PASS or risk-ratio delivery |
-| 6 | **Per-user Sharpe Ratio and Sortino Ratio** | New R1 | High | High | TBD | **High** | **OPEN / DEFERRED — NOT STARTED** |
-| 7 | More Intelligent FA/TA Chatbot | New R2 | TBD | TBD | TBD | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
-| 8 | More Engaging Charts and Analysis | New R3 | TBD | TBD | TBD | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
+| 5 | Portfolio Analytics / Demo-critical UI | Later delivery / #320 | High | High | Medium | — | **CLOSED within recorded scope** — not a clean PASS or risk-ratio delivery |
+| 6 | **Per-user Sharpe Ratio and Sortino Ratio** | New R1 | High | High | Low | **High** | **OPEN / DEFERRED — NOT STARTED** |
+| 7 | More Intelligent FA/TA Chatbot | New R2 | High | High | Low | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
+| 8 | More Engaging Charts and Analysis | New R3 | Medium | High | Medium | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
 | 9 | Custom Asset & Portfolio Management | v4 Item C / retained goal | Medium | High | Low | **Medium** | **OPEN / UNSCHEDULED** |
 | 10 | User Settings / Personalization | v4 / retained goal | Medium | Medium | Medium | **Medium** | **OPEN / UNSCHEDULED** |
-| 11 | Multi-provider Market Data | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / UNSCHEDULED** |
-| 12 | AI Service Contract Evolution | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / UNSCHEDULED** |
-| 13 | Advanced Agent Workflows | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN / EXPLORATORY** |
-| 14 | Database Least Privilege | Retained goal | TBD | TBD | TBD | **Medium** | **OPEN — future hardening** |
-| 15 | AWS Reactivation | Retained goal | TBD | TBD | TBD | **Medium** | **PARKED** — not a current defect or ready rollback |
+| 11 | Multi-provider Market Data | Retained goal | High | Medium | Low | **Medium** | **OPEN / UNSCHEDULED** |
+| 12 | AI Service Contract Evolution | Retained goal | Medium | Low | Medium | **Medium** | **OPEN / UNSCHEDULED** |
+| 13 | Advanced Agent Workflows | Retained goal | Medium | High | Low | **Medium** | **OPEN / EXPLORATORY** |
+| 14 | Database Least Privilege | Retained goal | High | Low | Medium | **Medium** | **OPEN — future hardening** |
+| 15 | AWS Reactivation | Retained goal | Low | Low | Low | **Medium** | **PARKED** — not a current defect or ready rollback |
+
+### Classification Assumptions — Quick Restart Notes
+
+These notes explain the rough ratings without committing a design, budget or schedule. Rows
+1–4 and 9–10 retain v4's ratings; row 5's ratings describe the delivered scope, not future
+risk-ratio work. The new classifications are a proposal until Claude responds; agreement should
+be recorded here, not inferred from publication or a previous review of the matrix layout.
+
+| Row | Why this classification / assumption to revisit |
+|---|---|
+| 5 | Existing analytics and UI have strong user value; moderate delivery complexity within the already accepted scope. No additional implementation is implied. |
+| 6 | Strong analytical value; harder because trustworthy historical returns, changing holdings/cash flows, FX and ratio conventions matter more than the formulas alone. |
+| 7 | Strong user-facing improvement; harder because FA needs fundamentals and TA needs suitable history, with grounded explanations, provenance and fallback behavior. |
+| 8 | Visible engagement benefit; moderate ease for a small set of views using existing data. History-heavy or benchmark-dependent views would be harder. |
+| 11 | Important for coverage/reliability, with mostly indirect user benefit; harder due to provider licensing, symbol/currency normalization, reconciliation and failover. |
+| 12 | Mainly an architectural improvement with little immediate UI benefit; moderate ease for one bounded contract change. Do not assume an agent-platform migration is equally easy. |
+| 13 | Potentially strong user value but exploratory importance; harder due to multi-step orchestration, trustworthy inputs and financial/operational guardrails. Assumes simulations, not live trade execution. |
+| 14 | Important security hygiene with little visible UI value; moderate ease assuming scoped application roles and permission tests, not a wholesale identity redesign. |
+| 15 | Low current benefit while Azure is the demo path; harder because the parked AWS environment needs identity, infrastructure, model-access and cost revalidation. |
 
 Start with R1 when feature development resumes. Its data-history prerequisites still need
 assessment. Sections 2–3 below preserve the brief scope and restart context for every open row;
