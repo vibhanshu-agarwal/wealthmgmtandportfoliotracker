@@ -906,9 +906,10 @@ The backlog reconciliation is filed through #324 (`6f1e5700`).
 mark Asset Picker CLOSED, and retain the other/new goals. Sharpe/Sortino is High priority;
 all other open roadmap goals are Medium. The owner's follow-up asks for rough importance,
 usability and ease ratings instead of missing classifications. Claude's quick review is now
-recorded in v5, with accepted rating adjustments and the owner's clarification: explanatory
-charts/graphs belong within High-priority Sharpe/Sortino, not solely within the separate R3
-exploration. Claude's confirmation of the clarified R1 rating remains pending. This local
+recorded in v5, with accepted rating adjustments and the owner's clarifications: explanatory
+charts/graphs and AI-assisted guidance on improving the ratios belong within High-priority
+Sharpe/Sortino, not solely within the separate R2/R3 goals. Detailed design waits until after
+the freeze. Claude's confirmation of the clarified R1 rating remains pending. This local
 correction needs review and separate publication approval; feature implementation stays deferred.
 It changes no accepted demo verdict or engineering-backlog disposition.
 None of these documentation filings completes the

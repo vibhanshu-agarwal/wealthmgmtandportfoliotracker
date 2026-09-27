@@ -131,7 +131,10 @@ date, detailed design or implementation authorization. Use the restored
 - **R1 — Portfolio Sharpe Ratio and Sortino Ratio:** add risk-adjusted performance analysis for
   each user's portfolio, distinguishing total volatility from downside risk. **Include explanatory
   charts/graphs and plain-language interpretation as part of R1 itself; standalone ratio numbers
-  are insufficient.** Exact chart choices remain for later design. At restart, first
+  are insufficient. AI-assisted guidance on how to improve the ratios is also part of R1**, not
+  only the separate FA/TA chatbot goal. Keep guidance grounded in portfolio data and disclose
+  assumptions; chart choices and detailed feature design remain deferred until after the freeze.
+  At restart, first
   assess usable return history and agree lookback, annualization, risk-free/target return, FX and
   cash-flow/holdings-history conventions; incomplete data must not produce misleading ratios.
 - **R2 — More intelligent FA/TA chatbot:** move beyond a ticker snapshot to selectable

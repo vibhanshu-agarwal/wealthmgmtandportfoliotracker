@@ -26,7 +26,8 @@ remaining work. These are lightweight planning judgments, not measured scores or
 estimates. Existing v4 ratings are retained. Claude's quick review agreed with the remaining
 ratings and proposed changes to rows 6, 11 and 12. Codex accepts Low usability for row 11,
 Low importance for row 12, and conditional Medium ease for row 6. The owner's 2026-09-27 UTC
-clarification makes charts/graphs part of row 6 itself, so Codex retains High usability;
+clarifications include charts/graphs and AI-assisted improvement guidance in row 6 itself,
+so Codex retains High usability;
 Claude's confirmation of that clarified row remains pending. Reassess assumptions at restart.
 
 - **Importance:** impact on analytical usefulness, reliability or the project's goals.
@@ -42,7 +43,7 @@ Claude's confirmation of that clarified row remains pending. Reassess assumption
 | 3 | Observability & Application Insights | v4 Item A | Medium | Low | Medium | — | **CLOSED** — accepted historical delivery scope |
 | 4 | **Asset Picker (curated universe)** | v4 Item B / Spec A–B1–B2 | High | High | Low | — | **CLOSED** — delivered, deployed and accepted; provider/corporate-action residuals are separate |
 | 5 | Portfolio Analytics / Demo-critical UI | Later delivery / #320 | High | High | Medium | — | **CLOSED within recorded scope** — not a clean PASS or risk-ratio delivery |
-| 6 | **Per-user Sharpe Ratio and Sortino Ratio with explanatory charts/graphs** | New R1 | High | High | Medium | **High** | **OPEN / DEFERRED — NOT STARTED** |
+| 6 | **Per-user Sharpe Ratio and Sortino Ratio with charts/graphs and AI-assisted guidance** | New R1 | High | High | Medium | **High** | **OPEN / DEFERRED — NOT STARTED** |
 | 7 | More Intelligent FA/TA Chatbot | New R2 | High | High | Low | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
 | 8 | More Engaging Charts and Analysis | New R3 | Medium | High | Medium | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
 | 9 | Custom Asset & Portfolio Management | v4 Item C / retained goal | Medium | High | Low | **Medium** | **OPEN / UNSCHEDULED** |
@@ -63,7 +64,7 @@ publication does not imply agreement on that clarification or authorize implemen
 | Row | Why this classification / assumption to revisit |
 |---|---|
 | 5 | Existing analytics and UI have strong user value; moderate delivery complexity within the already accepted scope. No additional implementation is implied. |
-| 6 | High user value assumes ratios accompanied by explanatory charts/graphs and plain-language interpretation, not standalone numbers. Medium ease assumes a bounded first version using current holdings, validated daily history and a stated risk-free/target return, including those visuals. A retrospective current-holdings scenario must be labeled as such, not presented as the user's actual historical return. Accurate returns accounting for deposits/withdrawals and holdings changes would be Low ease. These assumptions need confirmation at design time, not silent reduction of scope. |
+| 6 | High user value assumes ratios, explanatory charts/graphs and AI-assisted improvement guidance together. Medium ease assumes a bounded first version using current holdings, validated daily history, stated return conventions and guidance grounded in computed results. A retrospective current-holdings scenario must be labeled, not presented as actual historical return; accurate deposit/withdrawal and holdings-change accounting would be Low ease. Reassess at design time without silently dropping visuals or guidance. |
 | 7 | Strong user-facing improvement; harder because FA needs fundamentals and TA needs suitable history, with grounded explanations, provenance and fallback behavior. |
 | 8 | Visible engagement benefit; moderate ease for a small set of views using existing data. History-heavy or benchmark-dependent views would be harder. |
 | 11 | Important for coverage/reliability, with mostly indirect user benefit; harder due to provider licensing, symbol/currency normalization, reconciliation and failover. |
@@ -105,7 +106,11 @@ data sources, dependencies and product goals when the owner resumes the project.
 Improve portfolio analytics with risk-adjusted performance measures for each user's portfolio:
 Sharpe for total-volatility risk and Sortino for downside risk. **Charts/graphs and plain-language
 interpretation are required parts of this feature, not optional work deferred to R3.** Standalone
-ratio numbers do not satisfy the owner's request. The visuals must help users understand the
+ratio numbers do not satisfy the owner's request. **AI-assisted user guidance on how to improve
+the ratios is also in scope**, alongside explaining what drives them; this belongs within R1,
+not solely within the separate FA/TA chatbot request. Guidance should be grounded in portfolio
+data, with assumptions and uncertainty disclosed, not promises of improved returns. Detailed
+design is intentionally deferred until after the freeze. The visuals must help users understand the
 returns and total-volatility/downside-risk context behind the ratios; exact chart choices remain
 for later design. First revisit return-history
 quality, lookback/annualization, risk-free or target return, FX and cash-flow/holdings-history
