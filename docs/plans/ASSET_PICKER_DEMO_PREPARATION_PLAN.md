@@ -83,6 +83,23 @@ this draft with actual merge IDs before publication; do not close the header ite
 delivered merely from local acceptance. Any deployment is separately scoped/authorized. Gate E
 is not required under the owner's decision; this update authorizes no database read or repair.
 
+**Documentation filing checklist after #332 merges:**
+
+- Refresh this branch against the actual merged `main` and record #331/#332 delivery states
+  and merge IDs; source delivery does not itself prove deployment.
+- Reconcile [insight flow §5](../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
+  its profile table and deleted-source links with the cleanup, while preserving route-removal
+  history and the retained seed/cache contract.
+- Reconcile the [portfolio flow](../e2e-flows/portfolio-service-e2e.md) and
+  [detailed architecture](../architecture/WealthManagementArchitectureDocumentation_v2.md):
+  distinguish historical advisor calls from current code and remove current advisor-adapter claims.
+- Check all source links against the merged tree, independently review the refreshed diff,
+  and use `Master-plan impact: updated — process` in the docs PR body. Validate the guard
+  against the actual PR body. Push/PR and merge still require owner approval.
+
+The guides currently describe `main@e03d6cc4`; do not prematurely claim that #332 has merged.
+This checklist authorizes no code change, deployment or live validation.
+
 The local deployment/probe packet is accepted by Codex: packet SHA-256
 `0602badfbec143587c9052d7960f4e7a1742d8ab0a924d7916c854c200db13d9`, probe SHA-256
 `e16a31143e4b99fc8ea03638a0568e429e59ef894b502f736f51756b6949cf6b`.

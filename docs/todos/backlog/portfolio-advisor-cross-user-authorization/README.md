@@ -126,7 +126,8 @@ operation, rerun, deployment or cleanup is authorized by this record.
 
 The owner approved local cleanup after header-proof work. Claude's candidate `3638aec2` plus
 `52dd6e20` is based on `main@e03d6cc4`, separate from the gateway test branch. It removes the
-unused service, portfolio DTOs/result, advisor interface/adapters, advisor-only exception/handler,
+unused service, portfolio DTOs/result, advisor interface/adapters, `PortfolioNotFoundException`
+and its 404 handler,
 base-URL property and their tests. Active sentiment/chat/resolution adapters, shared builders,
 `AdvisorUnavailableException`/503 handling and the seeder's cache-eviction contract are preserved.
 It is published for review as [#332](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/332), not merged or deployed.
@@ -149,6 +150,8 @@ the active sentiment path (neither replacement is implemented or live-run); remo
 insight portfolio-URL settings/comments in Compose and parked AWS Terraform; separately assess
 retiring the now-unwritten portfolio-analysis cache/seed route and dependent E2E setup.
 The explicit RestClient starter is preserved. These residuals do not reopen the route IDOR.
+After #332 merges, reconcile the insight and portfolio flow guides and detailed architecture
+against that merged tree before filing this status update; the demo dashboard lists the checks.
 Code merge, documentation publication/merge and any scoped deployment remain separate decisions.
 Gate E was skipped by owner decision on 2026-09-27 UTC, not performed; historical prices are not certified.
 
