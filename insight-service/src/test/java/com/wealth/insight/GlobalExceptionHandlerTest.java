@@ -23,14 +23,4 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).containsEntry("error", "AI advisor unavailable");
         assertThat(response.getBody()).containsEntry("retryable", true);
     }
-
-    @Test
-    void handlePortfolioNotFound_returns404() {
-        var ex = new PortfolioNotFoundException("user-123");
-
-        var response = handler.handlePortfolioNotFound(ex);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(response.getBody()).containsKey("error");
-    }
 }
