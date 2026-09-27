@@ -1,15 +1,15 @@
 # Asset Picker — E2E Master Plan to Production
 
-> **Owner approval required:** push/PR and merge of the header-test, advisor-cleanup and later
-> documentation candidates need their relevant explicit approval. The owner authorized local
-> implementation/testing of the two tasks only. Completed advisor Gates A–D authorize no new
-> deployment, live operation or Gate E audit. Until merged, this status copy is a candidate.
+> **Owner approval required:** merging header-test #331 and advisor-cleanup #332, and push/PR
+> and merge of this later documentation candidate, need their relevant explicit approval.
+> Completed advisor Gates A–D authorize no new deployment or live operation. Gate E is skipped by
+> owner decision, not performed. Until merged, this documentation copy is a candidate.
 
 The accepted runtime/program-state code baseline is unchanged by this documentation draft.
 
 **Local follow-up acceptance — 2026-09-27 UTC:** header candidate `c647b6f0` and retained
 advisor cleanup `3638aec2` plus `52dd6e20`, both based on `main@e03d6cc4`, are reviewed and
-accepted locally, not published/merged/deployed. Codex verified the new gateway full-suite
+accepted and published for review as #331/#332, not merged/deployed. Codex verified the gateway full-suite
 capture: 328 unit, 284 integration and 4 Wave 8 passes, no skips, 74/74 XML hashes matching;
 `slim-image` was outside the selected tasks. Cleanup results remain 1,421 unit passes, 7 live-only
 skips and 40 integration passes with accounted-for removals. These are saved offline results,
@@ -18,8 +18,10 @@ not new Codex Java runs or live proof. Header/cleanup delivery remains OPEN; bac
 settings and seed/cache retirement are distinct OPEN follow-ups. Advisor route-removal closure
 is filed through #330 (`e03d6cc4`); these later candidates do not reopen it or advance Spec A/B1/B2.
 The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) owns details and next actions:
-obtain publication/merge approvals, assess any deployment separately, then scope optional Gate E.
-No historical-data read or repair is approved by this update. Refresh delivery status before
+finish PR CI and obtain merge approvals, assess any deployment separately, then file reviewed
+status and continue freeze preparation. On 2026-09-27 UTC the owner skipped Gate E because he
+reports site use only by himself and agents. It was not performed; historical-data integrity is
+not certified. No historical-data read or repair is approved by this update. Refresh delivery status before
 independent review/publication of this documentation candidate.
 
 **Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
@@ -60,8 +62,8 @@ with an identical tree and heavy PR CI green. Owner-authorized scoped deploy 362
 on market-data revision `--0000082` / image `sha256:48a649c0…9881`; one owner-run Gate D probe
 returned `REMOVED`, exit 0, with AAPL reads OK on 2026-09-26 UTC. The price-write defect is CLOSED
 within that route-removal scope, based on saved deploy logs and terminal-output transcription,
-not a new Codex live/Azure/database read. Optional historical-data audit Gate E stays open and
-requires separate design/approval; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
+not a new Codex live/Azure/database read. Optional historical-data audit Gate E was skipped by
+owner decision on 2026-09-27 UTC, not performed; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
 broader header coverage remains OPEN. Documentation filing remains separate from code publication.
 No application code or live operation is authorized by this documentation update.
 

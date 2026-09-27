@@ -86,8 +86,8 @@ and merged through #327 (`9c733f6d`). Scoped deploy 36259687567 and one owner-ru
 `REMOVED`, exit 0, with AAPL reads OK close that public-route defect on 2026-09-26 UTC. The service write API
 and legitimate refresh/seed paths remain.
 Removal does not undo historical writes; a Mongo anomaly audit cannot prove past non-use or
-clean downstream history/caches. Optional historical audit Gate E remains open with separate
-design/approval required. Closure uses saved deploy logs and the terminal-output transcription,
+clean downstream history/caches. Optional historical audit Gate E is skipped by owner decision
+on 2026-09-27 UTC, not performed. Closure uses saved deploy logs and the terminal-output transcription,
 not a new Codex live or cloud read; no broader security acceptance is implied.
 
 At the audited baseline, the separate `GET /api/insights/{userId}/analyze` advisor forwards the **path** user ID to

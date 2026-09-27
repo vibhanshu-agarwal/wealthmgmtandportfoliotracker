@@ -39,8 +39,8 @@ see the item for proof limits. This closure is filed through #330 (`e03d6cc4`).
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
 the separate header-proof item, which stays OPEN pending delivery of its accepted local candidate.
-Historical-data audit Gate E remains optional
-and open, with separate design/approval required; closure certifies no past-data cleanliness.
+Historical-data audit Gate E is NOT PERFORMED, skipped by owner decision on 2026-09-27 UTC;
+closure certifies no past-data cleanliness.
 No original 30-item audit disposition changes. Current totals are 33 directories: 10 fixed,
 2 superseded, 21 open, after the separately evidenced price-write and advisor-route closures.
 
@@ -49,10 +49,11 @@ retained advisor-code cleanup; both are implemented locally and accepted by Code
 review and Claude's fixes. Header candidate `c647b6f0` has a verified fresh capture: 328 unit,
 284 integration and 4 Wave 8 passes, no skips; all 74 XML hashes match. Cleanup candidate
 `3638aec2` plus `52dd6e20` has 1,421 unit passes, 7 live-only skips and 40 integration passes.
-Neither candidate is merged or deployed. The header item and separate cleanup therefore remain
+The candidates are published for review as #331/#332, not merged or deployed. The header item and separate cleanup therefore remain
 OPEN pending delivery; totals/dispositions do not change. Smoke replacements, leftover settings
-and seed/cache retirement remain distinct open follow-ups in the advisor item. Gate E is deferred
-until these tasks are delivered and its scope is assessed. Publication/merge require approval.
+and seed/cache retirement remain distinct open follow-ups in the advisor item. Gate E is skipped
+by owner decision based on owner-reported use only by himself and agents; no audit was performed
+or historical-data integrity established. Documentation publication and code/doc merges require approval.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
@@ -86,7 +87,7 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Total-value hydration](total-value-e2e-hydration/README.md) | `c6fd8408` repaired missing standalone assets; frontend subsequently migrated to static export. Not whole-valuation verification. |
 | [Total-value skeleton E2E](total-value-skeleton-e2e/README.md) | Same fixing commit and historical incident as hydration entry. Do not reimplement the obsolete NextAuth hypotheses. |
 | [Overview / Market Data page implementation](ui-polish-overview-market-data/README.md) | `71273107`, completed ledger and current components/tests. Original placeholder pages are replaced; later currency/overflow gaps remain separate. |
-| [Public market-price write authorization](public-market-price-write-authorization/README.md) | #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK. Historical-price integrity is not certified; optional Gate E needs separate design/approval. |
+| [Public market-price write authorization](public-market-price-write-authorization/README.md) | #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK. Historical-price integrity is not certified; optional Gate E is skipped by owner decision, not performed. |
 | [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1 and one owner-run Gate D `REMOVED`, exit 0; summary smoke check passed. Closed by route removal, not a cross-user live exploit test or broader authorization proof. Out-of-band Azure changes are not excluded; retained advisor-code cleanup remains OPEN. |
 
 ## Closed — superseded/no longer relevant

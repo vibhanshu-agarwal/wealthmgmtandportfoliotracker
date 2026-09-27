@@ -24,7 +24,7 @@ name is not itself a test against today's deployed Azure revisions.
 
 ## 2. Source-linked cases and limits
 
-**Accepted local candidates — 2026-09-27 UTC, not yet on main:** header candidate `c647b6f0`
+**Accepted candidates — 2026-09-27 UTC, published for review as #331/#332, not yet on main:** header candidate `c647b6f0`
 adds `GatewayUserIdHeaderIntegrationTest` with 88 downstream-capture cases across protected,
 service-health/internal and rejected-auth paths, plus non-routed auth/actuator characterization.
 The verified full capture has 328 unit, 284 integration and 4 Wave 8 passes, no skips; all 74 XML
@@ -95,7 +95,8 @@ isolation suite. The live sample did not enumerate other IDs; reviewed removed m
 supports route-wide absence. Retained advisor-code cleanup remains OPEN. The
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 is separately CLOSED after merge/deploy/probe, not through that isolation suite or a historical-data audit.
-Optional Gate E remains open. The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
+Optional Gate E is skipped by owner decision, not performed; no historical-data proof follows.
+The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
 is OPEN without a confirmed current bypass. Insight cache atomicity, outbox delivery, event-ID
 dedup, sustained load/failover and cross-cloud recovery remain separate proof/design work.
 This inventory authorizes no new tests, changes or live run and reopens no original closed item.

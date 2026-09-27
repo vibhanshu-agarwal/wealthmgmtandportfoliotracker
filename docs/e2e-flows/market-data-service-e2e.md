@@ -48,7 +48,8 @@ removes that POST with no alias or replacement. Real Mongo/Kafka tests record re
 data/events, with a required control write and failing restored-endpoint mutant. It merged through
 #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0. See the
 finding for the saved-artifact evidence basis and limits. Optional historical-price audit Gate E
-remains open and needs separate design/approval; removal does not undo prior writes. The rest of
+is skipped by owner decision on 2026-09-27 UTC, not performed; removal does not undo prior writes
+or certify historical data. The rest of
 this source audit retains its `8aa4035b` baseline.
 
 [MarketPriceDto](../../market-data-service/src/main/java/com/wealth/market/MarketPriceDto.java)

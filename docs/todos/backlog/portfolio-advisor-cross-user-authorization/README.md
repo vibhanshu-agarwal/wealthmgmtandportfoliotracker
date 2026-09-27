@@ -2,7 +2,7 @@
 
 > **Approval boundary:** owner-authorized Gates A–D are complete; the route-removal closure is
 > filed through #330 (`e03d6cc4`). The owner separately approved local retained-code cleanup.
-> Push/PR and merge of that cleanup or this later status update, deployment and live operations
+> Cleanup PR #332 is open. Its merge, this later status update's publication/merge, deployment and live operations
 > still need their relevant approval. None is granted by this document.
 
 **Status:** CLOSED — fixed by route removal, deployed and live-validated on 2026-09-27 UTC.
@@ -129,6 +129,7 @@ The owner approved local cleanup after header-proof work. Claude's candidate `36
 unused service, portfolio DTOs/result, advisor interface/adapters, advisor-only exception/handler,
 base-URL property and their tests. Active sentiment/chat/resolution adapters, shared builders,
 `AdvisorUnavailableException`/503 handling and the seeder's cache-eviction contract are preserved.
+It is published for review as [#332](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/332), not merged or deployed.
 
 Fable accepted with minors; `52dd6e20` hardens the retained `AdvisorAnalyzeRemovalIT`. Codex
 reviewed that final source and saved results: 1,428 unit cases (1,421 passed, 7 live-only skips)
@@ -148,8 +149,8 @@ the active sentiment path (neither replacement is implemented or live-run); remo
 insight portfolio-URL settings/comments in Compose and parked AWS Terraform; separately assess
 retiring the now-unwritten portfolio-analysis cache/seed route and dependent E2E setup.
 The explicit RestClient starter is preserved. These residuals do not reopen the route IDOR.
-Code publication/merge and any scoped deployment remain separate decisions. Gate E is deferred;
-the owner will assess its scope after these two tasks are delivered.
+Code merge, documentation publication/merge and any scoped deployment remain separate decisions.
+Gate E was skipped by owner decision on 2026-09-27 UTC, not performed; historical prices are not certified.
 
 See the [insight flow](../../../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
 [portfolio trust boundary](../../../e2e-flows/portfolio-service-e2e.md#2-endpoints-and-trust-boundary)

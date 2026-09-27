@@ -1,10 +1,12 @@
 # Asset Picker Demo Preparation Implementation Plan
 
-> **Owner approval required before push/PR and merge:** the header-test branch, retained-advisor
-> cleanup branch and this documentation follow-up each need their relevant explicit authorization.
-> The owner approved local implementation/testing of both tasks, not publication or deployment.
+> **Owner approval required before merge and documentation publication:** header tests are open
+> as #331 and retained-advisor cleanup as #332; neither is merged. This later documentation draft
+> still needs independent review and explicit push/PR and merge approval. No deployment is approved
+> by this document.
 > Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
-> operations, deployment and Gate E remain separately gated. This documentation copy is a candidate;
+> operations and deployment remain separately gated. Gate E is skipped by owner decision, not
+> performed. This documentation copy is a candidate;
 > filing requires independent review and owner-authorized merge into `main`. This document grants
 > no further authority.
 
@@ -26,8 +28,11 @@ post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
 
 **Operational status:** owner-authorized market-data deployment (Gate C) and one live probe
-(Gate D) are complete. Optional historical-data audit Gate E remains open and needs separate
-design/approval; no further live operation or data repair is authorized here. Price-write
+(Gate D) are complete. Optional historical-data audit Gate E is **NOT PERFORMED — skipped by
+owner decision on 2026-09-27 UTC**. The owner reports site use only by himself and agents and
+considers the retrospective audit unnecessary. This is a scope/risk decision, not independently
+verified absence of other users or certification of historical prices. No audit, database read,
+repair or future live operation is authorized here. Price-write
 removal `83607f5d` is published and merged through [#327](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/327)
 at `9c733f6df966c1acff80cdc4b9ddf35285512398` (2026-09-26 17:07:50 UTC). Codex verified the merge
 tree equals the reviewed head and the heavy PR CI jobs passed. Gate C's saved record reports main
@@ -51,10 +56,11 @@ demo waiver closed either security finding; the advisor has its own closure evid
 Current backlog totals remain 33 directories: 10 fixed, 2 superseded, 21 OPEN. Header proof and
 separate retained advisor-code cleanup are locally accepted, not merged/deployed, as recorded below.
 
-**Owner-approved local follow-ups — 2026-09-27 UTC:** header tests first, then retained advisor
-cleanup; assess Gate E scope only after these tasks are delivered. Both candidates are now
-accepted by Codex following Fable review and Claude's fixes. Neither is published, merged or
-deployed; no Java test execution, live operation or secret access was performed by Codex here.
+**Owner-approved follow-ups — 2026-09-27 UTC:** header tests first, then retained advisor
+cleanup. Both candidates are accepted by Codex following Fable review and Claude's fixes and
+published for review as #331/#332. Neither is merged or deployed; no Java test execution, live
+operation or secret access was performed by Codex here. Gate E was subsequently skipped by the
+owner as recorded above; no scope-assessment or audit task remains required for this demo.
 
 - **Header proof:** `c647b6f0` on `main@e03d6cc4`, one test file, no production behavior change.
   A fresh offline capture at that exact commit/tree reports exit 0 and 328/328 unit, 284/284
@@ -71,10 +77,11 @@ deployed; no Java test execution, live operation or secret access was performed 
   sentiment path, not a passed Azure/Bedrock smoke gate. Unused deployment settings and seed/cache
   retirement remain distinct follow-ups. Details are in the linked advisor item.
 
-**Next:** seek separate code push/PR approval, then review CI and obtain merge approval. Refresh
+**Next:** finish CI and obtain merge approval for [#331](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/331)
+and [#332](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/332). Refresh
 this draft with actual merge IDs before publication; do not close the header item or label cleanup
 delivered merely from local acceptance. Any deployment is separately scoped/authorized. Gate E
-has not started and this update authorizes no database read or repair.
+is not required under the owner's decision; this update authorizes no database read or repair.
 
 The local deployment/probe packet is accepted by Codex: packet SHA-256
 `0602badfbec143587c9052d7960f4e7a1742d8ab0a924d7916c854c200db13d9`, probe SHA-256
@@ -276,7 +283,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof `c647b6f0` and retained advisor cleanup `52dd6e20` are locally accepted, not merged/deployed; both delivery items remain OPEN. Gate E is optional/open, not performed | Obtain code publication/merge approval; scope any deployment separately. Assess Gate E only after these two tasks are delivered. Preserve demo/probe limits and distinct smoke/config/seed follow-ups |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Accepted header proof `c647b6f0` is open as #331 and advisor cleanup `52dd6e20` as #332; neither is merged/deployed. Gate E is NOT PERFORMED, skipped by owner decision | Finish CI and obtain merge approval for #331/#332; scope any cleanup deployment separately. No Gate E task is required. Preserve demo/probe limits and distinct smoke/config/seed follow-ups |
 | 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`). This header/cleanup status draft is later and not independently reviewed or filed. The operator script remains a private reviewed draft | Refresh merge status before publication, independently review this draft, then seek push/PR and merge approval. Continue the maintenance handoff; factual reconciliation does not wait for media brainstorming |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
@@ -292,8 +299,8 @@ That conclusion concerns the accepted evidence scope: the later price-write defe
 IDOR were not exercised by those checks. Price-write removal now has its own merge/deploy/probe
 closure, not an inherited suite PASS. The advisor IDOR is **CLOSED by merged/deployed route removal
 and one bound owner-run Gate D probe**; the old handler's exploitability is untested. Broader
-header-proof work and retained advisor-code cleanup remain OPEN. Historical-price audit Gate E is
-optional/open and certifies no past-data integrity.
+header-proof work and retained advisor-code cleanup remain OPEN pending delivery. Historical-price
+audit Gate E is skipped by owner decision, not performed, and certifies no past-data integrity.
 The header-sanitization regression-proof gap is separate OPEN test work, not a current
 bypass proved by this source audit.
 

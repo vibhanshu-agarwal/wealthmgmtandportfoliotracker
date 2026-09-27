@@ -1,11 +1,11 @@
 # Gateway user-header spoofing regression proof
 
 > **Approval boundary:** the owner approved local implementation and offline verification.
-> Push/PR and merge of the code or this status update still need explicit approval. No live
+> Code PR #331 is open; its merge and push/PR and merge of this status update need explicit approval. No live
 > spoofing test, deployment, cloud access or Gate E audit is authorized by this record.
 
-**Status:** OPEN — broader regression proof implemented locally and accepted at `c647b6f0`;
-publication/merge pending. Not a confirmed current bypass.
+**Status:** OPEN — broader regression proof accepted at `c647b6f0` and published for review
+as [#331](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/331); merge pending. Not a confirmed current bypass.
 **Priority:** Medium (security regression coverage).
 **Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
 **Implementation:** partial coverage at `83607f5d`, merged through #327 (`9c733f6d`); the broader

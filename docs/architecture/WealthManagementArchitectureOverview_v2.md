@@ -68,7 +68,8 @@ At `8aa4035b`, the public price POST lacked operator authorization: ordinary sel
 could change shared prices. That [security defect](../todos/backlog/public-market-price-write-authorization/README.md)
 is CLOSED after #327, scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with
 AAPL reads OK. The public route is removed, not newly role/key-gated; historical exploitability
-was not tested and optional historical-price audit Gate E remains open.
+was not tested. Optional historical-price audit Gate E is skipped by owner decision on
+2026-09-27 UTC, not performed; historical-data integrity is not certified.
 
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model

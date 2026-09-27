@@ -1,7 +1,8 @@
 # Public market-price write lacks operator authorization
 
-> **Owner approval still required:** documentation push/PR and merge, and any optional historical-data
-> audit (Gate E), are separate decisions. The owner-authorized deployment (Gate C) and one live
+> **Owner approval still required:** publication/merge of later documentation and any future live
+> operation remain separate decisions. Optional historical-data audit Gate E is skipped by owner
+> decision, not performed. The owner-authorized deployment (Gate C) and one live
 > probe (Gate D) are complete. This closure authorizes no further live operation or data repair.
 
 **Status:** CLOSED — fixed, deployed and live-validated on 2026-09-26 UTC; historical-data integrity is not certified.
@@ -130,8 +131,12 @@ test missing/wrong keys and blank configured key fail closed, valid-key behavior
 fixtures, and normal price reads/refresh still work. Verify neither Mongo nor Kafka changes on
 denial. Independently review the patch and obtain separate deployment/validation authority.
 The source and separate serving evidence above cover the selected removal path. This documentation
-reconciliation itself implements no application code or live tests. Gate E remains optional, open,
-unperformed and subject to separate design/approval. The advisor IDOR is separately CLOSED by
+reconciliation itself implements no application code or live tests. Gate E is **NOT PERFORMED —
+skipped by owner decision on 2026-09-27 UTC**. The owner reports the site has been used only by
+himself and agents, including demo-account use, and considers the retrospective audit unnecessary.
+This is an accepted scope/risk disposition, not a database/user inventory or proof of clean
+historical prices, non-use of the old route, or absence of all anomalies. No audit or repair was
+performed; any future reactivation needs its own scope and authority. The advisor IDOR is separately CLOSED by
 its own #329 merge/deploy/probe evidence; the broader header-proof gap and retained advisor-code
 cleanup remain OPEN.
 
