@@ -1,11 +1,11 @@
 # Portfolio advisor cross-user authorization (IDOR)
 
-> **Approval boundary:** the code fix is published and merged through #329. Scoped deployment,
-> live validation and cloud/configuration changes still need the relevant owner approval;
-> technical acceptance and the completed merge do not grant that authority.
+> **Approval boundary:** the code fix is merged through #329 and its owner-authorized scoped
+> deployment is complete. Gate D live validation and any further cloud/configuration changes
+> still need the relevant owner approval; completed Gates A–C do not grant that authority.
 > Push/PR and merge of this documentation also require explicit approval. None is granted here.
 
-**Status:** OPEN — route removal merged through #329; not deployed or live-validated.
+**Status:** OPEN — route removal merged through #329 and deployed; live validation pending.
 **Priority:** High (security). **Origin:** 2026-09-26 UTC E2E guide review against `main@8aa4035b`.
 **Implementation:** removal `435f61c6` plus `35779e2e` merged through
 [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at
@@ -51,7 +51,7 @@ The chosen treatment removes the unused public endpoint, with no replacement or 
 controller no longer injects `InsightService`; its remaining health/summary routes and chat are
 unchanged. The retained advisor service is not called by another production HTTP handler. Any
 future exposure must derive the target from the trusted gateway-authenticated subject, not a
-caller-selected ID. This is merged source remediation, not a claim about the deployed service.
+caller-selected ID. Deployment identity is recorded below; endpoint behavior still needs Gate D.
 
 `AdvisorAnalyzeRemovalIT` uses a recording fake portfolio-service and a positive control call.
 Its original-route checks cover missing, ordinary and showcase identity fixtures; its structural
@@ -68,32 +68,39 @@ final source diff, all eight original handoff checksums, saved XML and local rep
 that source review did not rerun Java tests or make live/Azure reads. The old source finding was
 published through #328. Codex subsequently verified #329's merged tree equals `35779e2e`, both
 cited fix commits remain ancestors, and the PR's required checks and four image-smoke jobs passed.
-Main's post-merge CI is a separate pre-deploy condition. No backlog totals or deployment
-acceptance change merely because the code merged.
+Main's four post-merge CI workflows subsequently passed at the pinned merge. Code merge and
+deployment artifacts alone do not establish the live endpoint's behavior or close this item.
 
 The deployment/probe instructions are accepted for preparation (reviewed packet `3508ff43…`,
-header-only successor `0a8b52ce…`). All 23 current handoff manifest entries verify. The unchanged
+with later header-only status revisions). All 24 handoff manifest entries verify at this review. The unchanged
 probe `0f32ebd6…` and launcher `a721832b…` were reviewed; Codex reran 31 offline tests in that
 packet review. The probe targets only the signed-in account's subject, distinguishes the default
 unmapped-route 404 from the old business responses, and never retries the probe. Its summary
 read is an endpoint/schema smoke check that accepts an empty map, not proof of populated data.
 
-## Remaining delivery and closure steps
+## Completed deployment and remaining closure step
 
-Publication and merge (Gates A/B) are complete. Before Gate C, require green main CI on the pinned
-merge and refresh the GitHub deployment/input checks. The saved baseline is run 36092375156,
+Publication, merge and scoped deployment (Gates A–C) are complete. The saved baseline is run 36092375156,
 attempt 1, at `db51cf5b`, with insight revision `--0000081` and digest `dad55386…`; later saved
 market-data deployment logs still show that identity. This is historical workflow evidence, not
 a new Azure read or a guarantee against out-of-band changes.
 
-Gate C authorizes only insight-service deployment; Gate D separately authorizes one live probe.
-A mismatched before-snapshot blocks Gate D and closure; the workflow itself does not enforce that
-historical comparison before updating the app. Bind the saved digest/revision evidence and both
-probe-adjacent GitHub checks to the same run ID, attempt and head SHA. These checks do not exclude
+Owner-authorized scoped deploy [36285996570](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36285996570),
+attempt 1, succeeded at `6a82f3da` on 2026-09-27 UTC. Saved workflow logs bind insight-service
+revision `--0000082` to `sha256:aa1e9e3c2a7eaff8e208bf3164d0e38c061aa950fd4b9c350693f65fe7eec0be`
+with 100% traffic. The before-snapshot matched the recorded insight baseline; the non-interference
+check passed with `errors: []`, and other apps/the market refresh Job were unchanged within the
+compared fields. Frontend, seed and verify were skipped as intended. Codex checked the saved logs,
+their hash and GitHub run/attempt/commit; it made no new Azure read or live request. Matching
+snapshots do not rule out intervening or subsequent out-of-band configuration changes.
+
+Gate D still needs separate owner approval for one live probe. Immediately before and after it,
+bind the saved digest/revision evidence and GitHub checks to run `36285996570`, attempt 1 and
+`6a82f3da`, checking for a newer deployment or changed attempt. These checks do not exclude
 direct Azure changes. Any failed or ambiguous probe/read is inconclusive: stop, no automatic
 rerun or rollback. Closure requires the authorized deployment and the bound REMOVED result with
 the limited summary smoke check passing; it does not certify chat/model reliability.
-No live exploit, deployment or cleanup of the retained advisor implementation is authorized here.
+No probe, further deployment, exploit or cleanup of the retained implementation is authorized here.
 
 See the [insight flow](../../../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
 [portfolio trust boundary](../../../e2e-flows/portfolio-service-e2e.md#2-endpoints-and-trust-boundary)

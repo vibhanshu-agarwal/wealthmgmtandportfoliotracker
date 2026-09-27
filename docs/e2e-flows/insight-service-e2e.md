@@ -5,10 +5,12 @@ a fresh Azure OpenAI call, cache read or endpoint test. The
 [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains accepted evidence and
 unverified edges, including natural-language resolution and broader model-text reliability.
 
-**Merged security-remediation follow-up:** commits `435f61c6` and `35779e2e` remove the unused
+**Merged/deployed security-remediation follow-up:** commits `435f61c6` and `35779e2e` remove the unused
 advisor endpoint through [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329)
-at `6a82f3da` (2026-09-26 20:49:07 UTC). The merge tree equals the reviewed head; it is not
-deployed or live-validated. The baseline advisor path below is retained as the finding's context,
+at `6a82f3da` (2026-09-26 20:49:07 UTC). The merge tree equals the reviewed head. Scoped deploy
+36285996570, attempt 1, succeeded at that commit on 2026-09-27 UTC; saved workflow artifacts bind
+insight revision `--0000082` / digest `aa1e9e3c…`. Gate D endpoint validation is still pending,
+with no fresh Azure read or live request by this audit. The baseline path below is finding context,
 not a route present in current main.
 
 ## 1. Browser entry and distinct requests
@@ -30,7 +32,7 @@ serve different pipelines:
 | `GET /api/insights/market-summary` | Redis-backed bulk price/trend map with catalog quote currency; **no per-ticker AI sentiment calls** |
 | `GET /api/insights/market-summary/{ticker}` | One stored ticker summary plus sentiment from the active adapter; no price yields 404; adapter unavailability leaves sentiment absent |
 | `POST /api/chat` | Stateless asset-resolution turn, then stored facts and optional sentiment |
-| `GET /api/insights/{userId}/analyze` | Audited-baseline advisor path; removed on main through #329, with no alias; deployment pending |
+| `GET /api/insights/{userId}/analyze` | Audited-baseline advisor path; removed through #329, with no alias; scoped deployment complete, live route validation pending |
 | `GET /api/insights/health` | Public service-UP handler, not a successful model or Redis acceptance test |
 
 The bulk cards' “Sentiment Unavailable” is expected when that endpoint supplies no sentiment;
@@ -150,10 +152,9 @@ The merged removal deletes the controller route and its `InsightService` injecti
 the retained analysis code. No other production HTTP handler calls that service. The recording
 portfolio-stub regression is RED before removal and GREEN on `35779e2e`; four re-exposure mutants
 are reported caught. Codex inspected source and saved evidence, without rerunning Java tests.
-See the linked backlog for counts, proof limits and delivery gates. Publication/merge are complete;
-the item stays OPEN pending separately authorized deployment and live validation. Earlier isolation
-acceptance
-is neither a waiver nor evidence that this repair is live.
+See the linked backlog for counts, proof limits and delivery gates. Publication, merge and scoped
+deployment are complete; the item stays OPEN pending separately authorized live validation.
+Earlier isolation acceptance is neither a waiver nor evidence of this removed route's live behavior.
 
 Formal per-user Sharpe/Sortino metrics, richer FA/TA conversation and exploratory analysis are
 [deferred v5 requests](../../roadmap_enhancements_v5.md). Source availability of an advisor or a
@@ -177,7 +178,7 @@ flowchart TD
     A -.-> O[Azure OpenAI or retained Bedrock adapter]
     K[Kafka market-prices] --> E[Insight event listener]
     E --> R
-    G --> P[Baseline advisor endpoint - removed on main, deploy pending]
+    G --> P[Baseline advisor endpoint - removed and deployed, probe pending]
     P --> H[Portfolio-service holdings then InsightAdvisor]
 ```
 

@@ -104,9 +104,11 @@ remove that route and its controller service injection, with no alias. The analy
 remains, but no other production HTTP
 handler calls it. Any future exposure must use the gateway-authenticated subject. Saved local
 RED/GREEN evidence and reported re-exposure mutants support source remediation, not a deployed
-security claim. Code publication/merge are complete; scoped insight-service deployment and
-artifact-bound live validation remain pending under owner approval. The linked backlog item stays
-OPEN; the merge is not evidence that the deployed route is absent.
+security claim. Code publication/merge and owner-authorized scoped deployment are complete:
+run 36285996570, attempt 1, at `6a82f3da` binds insight revision `--0000082` / digest `aa1e9e3c…`
+in saved workflow logs. Other apps/the refresh Job were unchanged within the snapshot comparison's
+fields. The linked backlog item stays OPEN pending separately approved Gate D live validation;
+deployment identity is not itself evidence of the route's response, nor a fresh Azure read.
 
 ## 4. Holdings, valuation and analytics
 

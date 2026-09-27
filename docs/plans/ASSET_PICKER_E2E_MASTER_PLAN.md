@@ -11,14 +11,17 @@ only when the carrying PR merges into main. Runtime/demo acceptance remains gove
 [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) and is unchanged by this audit.
 The review follow-up records the source-confirmed
 [advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
-Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
+The old handler's Azure exploitability is unverified; prior portfolio/session isolation evidence does
 not cover it. Reviewed commits `435f61c6` and `35779e2e` remove the unused advisor route with no
 alias and are merged through [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329)
 at `6a82f3da` (2026-09-26 20:49:07 UTC). Codex verified the merge tree equals the reviewed head,
 the cited commits remain ancestors and PR checks passed. The original source review inspected
 saved test evidence, without rerunning Java tests or making live/Azure reads. The item stays
-OPEN: scoped insight-service deployment and artifact-bound live validation remain pending under
-owner approval, with green post-merge main CI a separate pre-deploy condition. The earlier
+OPEN: Gate D artifact-bound live validation remains pending under owner approval. Post-merge main
+CI passed; owner-authorized scoped deploy 36285996570, attempt 1, succeeded at `6a82f3da` on
+2026-09-27 UTC. Saved workflow logs bind insight revision `--0000082` / digest `aa1e9e3c…`, with
+other apps/the refresh Job unchanged within the compared fields. This is deployment evidence,
+not a fresh Azure read or proof of the endpoint's live response. The earlier
 flow/architecture documentation is filed through #328 (`598bdf17`); this later status follow-up
 is separate from code delivery and does not advance Spec A/B1/B2 acceptance.
 The architecture review also confirmed the subsequently fixed

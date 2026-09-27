@@ -26,10 +26,13 @@ final review accepted `5ffdd305` after the citation/wording corrections. Publica
 changes remains governed by the rule above.
 The advisor route removal `35779e2e` (including fix `435f61c6`) is merged through
 [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at `6a82f3da`
-(2026-09-26 20:49:07 UTC); it is not deployed or live-validated, so its item remains OPEN.
+(2026-09-26 20:49:07 UTC). Owner-authorized scoped deploy 36285996570, attempt 1, at that merge
+succeeded on insight revision `--0000082` / digest `aa1e9e3c…` on 2026-09-27 UTC. Gate D live
+validation is still pending, so its item remains OPEN.
 Codex verified the identical merge tree and green PR checks. Its earlier source review inspected
-saved test evidence, not a new Java run or live exploit. The accepted operational packet still
-needs separate scoped deployment and probe approvals; see the item for proof limits.
+saved test evidence, not a new Java run or live exploit. Deployment attribution rests on saved
+workflow logs, not a new Azure read. The accepted packet still needs separate probe approval;
+see the item for proof limits.
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
 the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional
@@ -95,7 +98,7 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |
 | [Narrow-width overflow](responsive-dashboard-narrow-width-overflow/README.md) | **Accepted demo debt, not fixed.** Portfolio 320/375px and Overview 320px need future measured repair; desktop scope does not close them. |
-| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **OPEN; route removal merged through #329 at `6a82f3da`.** Not deployed or live-validated. Original Azure reachability remains unverified; separately authorized scoped deployment and artifact-bound validation are pending, not waived. |
+| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | **OPEN; merged through #329 and scoped-deployed by run 36285996570, attempt 1, at `6a82f3da`.** Live validation is pending. Original exploitability remains unverified; Gate D needs separate approval and artifact-bound evidence, not a waiver. |
 | [Required deploy-workflow contract](required-deploy-workflow-contract/README.md) | Job remains advisory/unbounded fetch. Reviewed promotion, synchronized inventories and unskipped aggregate proof remain required. |
 | [SERVICE_VERSION / image drift](service-version-image-drift/README.md) | Owners still differ. Define label invariant, reconcile and guard; old concrete tag pairs are historical, not current inventory. |
 | [Wake-preflight hardening](task-8-9-wake-preflight-hardening/README.md) | Five retained source/comment findings plus unproven stub edge. Task 8.9 itself is accepted GO; do not reopen its serving gate. |
