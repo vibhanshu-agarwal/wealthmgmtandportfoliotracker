@@ -5,8 +5,8 @@ creation or mutation, secret/cloud/database access, dispatch, deploy, repair, ro
 cleanup need their applicable bounded approval. Documentation publication and merge also remain
 separate decisions. This guide grants no new authority and revives no historical approval.
 
-**Reconciliation date:** 2026-09-26 UTC. Source basis: `main@d515aa5b`, plus the accepted
-backlog-audit documentation through `602f6bca`. This is a source/accepted-evidence guide, not a
+**Reconciliation date:** 2026-09-27 UTC. Restart-kit source cut: `main@cedbb5af` (#334),
+following the earlier operational reconciliation at `main@d515aa5b`. This is a source/accepted-evidence guide, not a
 fresh cloud inventory. Start with the [runbook index](README.md); use the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) as the status dashboard.
 "Production" in resource/workflow names denotes this project's deployed **portfolio-demo
@@ -30,12 +30,12 @@ Cleanup query/count and login-proof limitations remain as recorded in the dashbo
 
 ## 2. Demo startup and account safety
 
-1. Obtain the privately retained reviewed operator script and `demo-warmup.ps1`, with their
-   accepted versions/hashes. They are **not shipped by this guide**. If unavailable, stop and
-   recover/review the kit; do not assume a workstation-specific historical path still exists.
-   **Freeze filing gap:** before the Git-only restart handoff is complete, the required scripts,
-   tests and instructions must be sanitized, reviewed and merged into `main`; private retention
-   or a historical hash alone is insufficient.
+1. Use the repository [operator guide](DEMO_OPERATOR.md) and [preserved kit](../../scripts/demo/README.md),
+   with its source hashes and offline checks. The helpers are unchanged; the reconciled guide
+   is a not-live-rehearsed rewrite with review corrections cleared at `0ad791ae`.
+   The kit is durable only
+   after its owner-authorized carrying PR merges into main. Stop if required files/checks are
+   missing; do not fall back to a workstation-specific historical path.
 2. Confirm the approved target/build/account and that no other session or E2E workflow uses
    the account during the walkthrough. Resolve credentials through approved private inputs;
    never copy passwords, JWTs or raw authenticated responses into published evidence.
@@ -116,7 +116,8 @@ they are not automatic acceptance for later source or newly reachable delete/wri
 
 ## 6. Freeze and later restart
 
-Before parking the project, file the reviewed roadmap/runbook/backlog reconciliation and every
+Use the [Git-only freeze/restart handoff](PROJECT_FREEZE_HANDOFF.md) for the preserved artifacts,
+historical serving basis and still-unassigned maintenance decisions. Before parking the project, file the reviewed roadmap/runbook/backlog reconciliation and every
 required operator/warm-up script, safe configuration template, decision and restart instruction
 in Git through reviewed, owner-authorized PRs merged into `main`. **Owner direction,
 2026-09-27 UTC: restart must rely on merged Git, not loose worktree documents, unpublished

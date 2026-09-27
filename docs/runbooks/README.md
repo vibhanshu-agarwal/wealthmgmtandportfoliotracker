@@ -13,13 +13,20 @@ Start with [current operations](CURRENT_OPERATIONS.md). The
 dashboard; this index is navigation and operational interpretation, not another gate ledger.
 The [backlog inventory](../todos/backlog/README.md) identifies genuine residual work.
 
+The 2026-09-27 Git-only restart package adds the [operator guide](DEMO_OPERATOR.md),
+[freeze/restart handoff](PROJECT_FREEZE_HANDOFF.md) and [preserved kit](../../scripts/demo/README.md).
+Helpers are copied unchanged; review corrections to the reconciled guide were cleared at
+`0ad791ae`, and the guide is not live-rehearsed. An unmerged copy is a candidate; filing requires
+the carrying PR to merge.
+
 ## What was reconciled
 
 All **24 pre-existing runbooks** are classified below: **2 reusable procedures**, **3 legacy
 helpers**, and **19 historical records/packets**. The two reusable procedures were corrected
 against workflow/configuration source. The other 22 files remain unchanged, including their
 historical commands, approvals, outcomes, limitations and byte bindings. This index and the
-current-operations guide are two new files, not part of that 24-file count.
+current-operations guide and the later operator/freeze handoff are additional files, not part
+of that original 24-file count. The classification below preserves that historical inventory.
 
 This is a source/status/navigation reconciliation, **not** a replay of every historical command
 or a fresh verification of its output. No procedure has been live-tested by this audit.
@@ -84,7 +91,9 @@ checks, post-#320 suite and cleanup—not from old runbook serving tables.
 
 This reconciliation counts as filed only when its independently reviewed, owner-authorized
 carrying PR merges into `main`; an unmerged branch copy remains a candidate.
-The roadmap audit, broader README/architecture reconciliation, media brainstorming/package and
-approved private-artifact/worktree cleanup remain separate work. Before a long pause, identify
+Roadmap/root README reconciliation is filed through #326/#334; flow/architecture reconciliation
+and later security/test/source-cleanup status are filed through #328/#330/#333. The Git-only kit,
+maintenance decisions, media brainstorming/package and approved private-artifact/worktree
+cleanup remain separate freeze work. Before a long pause, identify
 the operator who owns the manual observability audit and approved secret/identity maintenance;
 no schedule, rotation, resource shutdown or recurring monitor was created by this documentation.
