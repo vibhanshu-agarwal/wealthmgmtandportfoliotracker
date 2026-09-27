@@ -49,8 +49,8 @@ a safe rollback command.
 ## 2. Required artifacts now in this candidate bundle
 
 - [Operator guide](DEMO_OPERATOR.md): secure sign-in, warm-up, baseline hard stop, edit/reverse
-  and exact restore. Independent review requested corrections; follow-up clearance is pending.
-  The rewritten guide has not been re-rehearsed.
+  and exact restore. Independent review cleared the corrections at `0ad791ae`; publication/merge
+  is pending owner approval. The rewritten guide has not been re-rehearsed.
 - [Preserved kit and hashes](../../scripts/demo/README.md): warm-up, its localhost test/mock,
   signed-in snapshot reader and verifier. Helpers are unchanged; no app implementation.
 - Configuration examples already tracked: [.env.example](../../.env.example) and
@@ -118,11 +118,13 @@ clean after checks. It required no old private kit, credential or live target.
 | Master-plan status propagation tests (`scripts/tests/test_master_plan_status_propagation.py`) | 33/33 passed; rerun: `python -B -m unittest discover -s scripts/tests -p test_master_plan_status_propagation.py` |
 
 Those tests cover `scripts/check_master_plan_status_propagation.py`, not the separate
-`scripts/classify_changed_paths.py` CI path classifier. The final documentation-only follow-up
+`scripts/classify_changed_paths.py` CI path classifier. This documentation-only follow-up
 retains all five tested helper hashes; it restores the owner-sign-in protocol, presentation
 fallbacks and desktop/data-upgrade guidance without authorizing any live execution.
 Independent review of `1fecc1f8` held publication for two Important and six Minor findings;
-this documentation follow-up addresses them, with clearance still pending. The sign-in rule
+the reviewer cleared all eight at `0ad791ae` on 2026-09-27 UTC, reporting a fresh full-clone
+33/33 test pass. An earlier partial-extract run failed because workflow files were absent;
+that was not reported as a branch defect. The sign-in rule
 is scoped to this browser walkthrough, not a blanket claim about agent capabilities or
 separately approved credential automation.
 
@@ -130,12 +132,14 @@ Runtime versions were Windows PowerShell 5.1.26100.9549, Node 26.5.0 and Python 
 These are the observed test runtimes, not new minimum-version commitments. The subsequent
 recording changes only documentation, not these tested helpers/fixtures. The full application
 suite and live browser flow were not run by this task; future CI does not automatically run the
-new warm-up suite. Independent review and a post-merge clean-main check remain required before
+new warm-up suite. Review clearance is recorded; owner-authorized publication/merge and a
+post-merge clean-main check remain required before
 calling the Git-only handoff filed and verified. No live readiness is implied by these results.
 
 ## 5. Remaining freeze sequence
 
-1. Independently review this kit/guide/handoff; owner approves publication and merge.
+1. Review cleared at `0ad791ae`; obtain owner approval for publication and merge. This later
+   recording update changes review status and the two non-blocking wording notes only.
 2. Confirm offline artifacts/links from a clean checkout of the merged result.
 3. Settle the maintenance decisions above.
 4. Brainstorm the LinkedIn, resume, PPT and video package with the owner and Claude **before**

@@ -32,7 +32,7 @@ Cleanup query/count and login-proof limitations remain as recorded in the dashbo
 
 1. Use the repository [operator guide](DEMO_OPERATOR.md) and [preserved kit](../../scripts/demo/README.md),
    with its source hashes and offline checks. The helpers are unchanged; the reconciled guide
-   is a not-live-rehearsed rewrite with review corrections awaiting follow-up clearance.
+   is a not-live-rehearsed rewrite with review corrections cleared at `0ad791ae`.
    The kit is durable only
    after its owner-authorized carrying PR merges into main. Stop if required files/checks are
    missing; do not fall back to a workstation-specific historical path.

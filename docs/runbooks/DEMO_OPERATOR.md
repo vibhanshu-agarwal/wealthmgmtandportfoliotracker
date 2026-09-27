@@ -6,8 +6,9 @@ or recovery authority, and does not authorize cleanup. Publication/merge of this
 requires approval. An unmerged copy is a candidate.
 
 **Prepared:** 2026-09-27 UTC from the prior reviewed operator flow and merged status at
-`main@cedbb5af`. Independent review of `1fecc1f8` required corrections; this follow-up awaits
-reviewer clearance. The reconciled guide has **not been live-rehearsed**.
+`main@cedbb5af`. Independent review of `1fecc1f8` required corrections, cleared at `0ad791ae`
+on 2026-09-27 UTC. Publication/merge remains pending owner approval. The reconciled guide
+has **not been live-rehearsed**.
 Historical acceptance and evidence limits remain in the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). The
 [kit inventory](../../scripts/demo/README.md) preserves the helpers and their original hashes.

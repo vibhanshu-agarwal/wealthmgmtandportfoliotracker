@@ -4,8 +4,8 @@
 > merged; their documentation is filed through #333 (`6e968c20`). On 2026-09-27 UTC the owner
 > authorized the roadmap-matrix/consensus and Git-only requirement correction, now filed through
 > #334 (`cedbb5af`). The later operator-kit and freeze/restart handoff is locally prepared,
-> with review corrections awaiting follow-up clearance and its own owner approval for
-> publication/merge. Prior approval
+> with review corrections cleared at `0ad791ae`; its own owner approval for publication/merge
+> remains pending. Prior approval
 > does not cover this new bundle, feature implementation, deployment or artifact cleanup.
 > Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
 > operations and deployment remain separately gated. Gate E is skipped by owner decision, not
@@ -324,7 +324,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, and matrix/Git-only requirement #334 (`cedbb5af`) are filed. The locally prepared five-helper kit and reconciled restart guide have review corrections awaiting follow-up clearance; filing is pending | Clear/file the [kit](../../scripts/demo/README.md) and [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md); verify merged-main clean checkout and assign maintenance responsibilities |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, and matrix/Git-only requirement #334 (`cedbb5af`) are filed. The five-helper kit and reconciled restart guide are reviewer-cleared at `0ad791ae`; owner-authorized publication/merge is pending | File the [kit](../../scripts/demo/README.md) and [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md); verify merged-main clean checkout and assign maintenance responsibilities |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -851,7 +851,7 @@ script was rehearsed on the #320 build, then amended in wording and Codex-review
 changes no click, save or restore step, but was not re-rehearsed; it remains a private local draft.
 The later [repository operator guide](../runbooks/DEMO_OPERATOR.md) reconciles that flow and
 preserves its helpers in the [kit](../../scripts/demo/README.md). Independent review required
-corrections, now awaiting follow-up clearance; the rewrite is not live-rehearsed. Candidate
+corrections, cleared at `0ad791ae`; the rewrite is not live-rehearsed. Candidate
 preparation is not filing or new live acceptance.
 The post-#320 suite/cleanup reconciliation is published through #323 at `d515aa5b`.
 The later [backlog audit](../todos/backlog/README.md) records its independent review and is filed
@@ -900,7 +900,8 @@ will be retained. Filing and cleanup require their own approvals; this is not de
 - [ ] Inventory and file the required operator/warm-up scripts, relevant tests, safe configuration
   templates, decisions and maintenance/restart instructions. Five unchanged helpers, synthetic
   fixtures, a reconciled operator guide and the [freeze handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md)
-  are now prepared locally. Independent review, carrying-PR merge and maintenance choices remain.
+  are now prepared locally and reviewer-cleared at `0ad791ae`. Carrying-PR merge and
+  maintenance choices remain.
 - [ ] File necessary sanitized evidence/verdict summaries in Git. Flag any historical raw evidence
   not retained so a future reader cannot mistake recorded acceptance for reproducible proof.
 - [ ] Verify the restart documentation and required artifacts resolve from a clean clone of
@@ -908,7 +909,7 @@ will be retained. Filing and cleanup require their own approvals; this is not de
   no live/cloud access and grants no such authority.
   Candidate clean-clone checks passed on `5b1fad26`: five source hashes match, 54/54 localhost
   warm-up checks and 33/33 status-guard tests pass, and 117 relative paths resolve. The
-  [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md) records the scope; independent review and
+  [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md) records the scope; review cleared at `0ad791ae`, and
   verification of the later merged-main result remain outstanding.
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)

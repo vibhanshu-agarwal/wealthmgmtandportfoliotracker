@@ -31,9 +31,9 @@ The private operator draft (`c2aea2f017f8dbf5874eb8b89b6eec67eb58e6e7ed5af54a1cc
 followed a rehearsed copy (`0a0005a7bccdd741ce9dc6ebea50ca939c39c877d993207e019fb8f5b8594d11`).
 It is not copied as current instructions: its account wording, revision table and targeted-check
 status had become stale. The new guide preserves the edit/reverse/verify sequence but reconciles
-those facts. **Independent review required corrections; follow-up clearance is pending, and
-the new guide has not been live-rehearsed.** Acceptance of the private draft does not
-automatically accept this rewrite.
+those facts. **Independent review cleared the corrections at `0ad791ae`; publication/merge
+remains pending owner approval, and the new guide has not been live-rehearsed.** Acceptance
+of the private draft does not automatically accept this rewrite.
 
 The fixtures contain two invented holdings only, not private account data. The seeded E2E
 email in the reader is a public test identifier, not a credential. No passwords, tokens,
@@ -56,6 +56,8 @@ python -B scripts/demo/verify-snapshot.py --diff scripts/demo/tests/fixtures/bas
 
 Expect the warm-up test to exit 0 with no FAIL lines; the identical fixture exits 0, and the
 changed fixture exits **1** with `CHANGED AAPL: 1.000 -> 1.001`. That last failure is deliberate.
+At this cut, the unittest command should report `Ran 33 tests`, `OK`, and exit 0. Run it from
+a full Git checkout: a partial archive missing workflow files is not sufficient for this suite.
 These fixture checks are limited CLI smoke checks, not comprehensive verifier coverage.
 The JavaScript reader is syntax-checked only in this preservation task; it is not executed
 against a browser or live session.
@@ -64,7 +66,8 @@ distinct from the CI changed-path classifier, `scripts/classify_changed_paths.py
 
 Fresh clean-clone results (54 warm-up checks and the bounded syntax/fixture checks) are recorded
 in the [handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). They are offline evidence,
-not a fresh live rehearsal or independent acceptance of the rewritten operator guide.
+not a fresh live rehearsal. Independent reviewer clearance at `0ad791ae` is recorded separately;
+it does not broaden the offline verification scope.
 
 ## Runtime limits that matter
 
