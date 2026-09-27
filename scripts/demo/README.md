@@ -54,6 +54,10 @@ These fixture checks are limited CLI smoke checks, not comprehensive verifier co
 The JavaScript reader is syntax-checked only in this preservation task; it is not executed
 against a browser or live session.
 
+Fresh clean-clone results (54 warm-up checks and the bounded syntax/fixture checks) are recorded
+in the [handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). They are offline evidence,
+not a fresh live rehearsal or independent acceptance of the rewritten operator guide.
+
 ## Runtime limits that matter
 
 - Warm-up: anonymous health GETs to four paths, ten-minute readiness window, then 45-minute

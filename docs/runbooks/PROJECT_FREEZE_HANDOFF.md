@@ -25,6 +25,12 @@ live-checked. This is not exhaustive security certification or proof that histor
 were never changed. Gate E was skipped by the owner, not performed. Header regression proof
 is merged test-only delivery. The advisor code cleanup is merged **but not deployed**.
 
+Still-open advisor follow-ups are the active-sentiment replacements for deleted live smoke
+tests, inert portfolio-URL configuration in Compose/parked AWS, and a separate decision on
+the retained seed route/cache and dependent E2E setup. See the
+[advisor disposition](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
+They do not reopen the closed IDOR or silently become required demo fixes.
+
 Historical serving basis, not a current Azure inventory:
 
 | Component | Accepted recorded basis | Limits |
@@ -95,9 +101,27 @@ Current workflow monitoring is manual-dispatch, not an assumed nightly demo assu
 6. Build a fresh bounded packet for any deploy/repair/cleanup. Do not replay old seed/reset,
    Mongo repair, offset reset, rollback or account-cleanup commands.
 
-**Clean-checkout verification status:** pending for this candidate until its offline results
-are recorded below; a post-merge clean-main check is still required before the Git-only handoff
-is called filed and verified. No live readiness is implied by clean-checkout success.
+**Candidate clean-checkout verification — 2026-09-27 UTC:** a fresh, shallow local clone of
+`5b1fad269f5a892cededbe98a71774b566306349` (tree
+`3bffb298cc14ebf4e3e238962ef99723f6046dab`) contained only tracked checkout files and remained
+clean after checks. It required no old private kit, credential or live target.
+
+| Offline check | Recorded result |
+|---|---|
+| Preserved helper SHA-256 / LF checkout | 5/5 source hashes matched; all script/fixture files retained LF |
+| Relative links in the six changed Markdown files | 117 checked, zero missing targets; this was a path check, not an anchor or remote-URL check |
+| Tracked configuration examples | Both `.env.example` and `.env.secrets.example` present; no actual secret file read |
+| Warm-up localhost suite | 54/54 checks, zero failures, exit 0; 08:10:47–08:13:52 UTC |
+| JavaScript syntax | Reader and mock passed `node --check`; reader not executed in a browser |
+| Snapshot CLI smoke | Invented two-holding copy VERIFIED; same-copy diff IDENTICAL/exit 0; changed quantity rejected/exit 1 |
+| Existing master-plan guard unit suite | 33/33 passed |
+
+Runtime versions were Windows PowerShell 5.1.26100.9549, Node 26.5.0 and Python 3.14.4.
+These are the observed test runtimes, not new minimum-version commitments. The subsequent
+recording changes only documentation, not these tested helpers/fixtures. The full application
+suite and live browser flow were not run by this task; future CI does not automatically run the
+new warm-up suite. Independent review and a post-merge clean-main check remain required before
+calling the Git-only handoff filed and verified. No live readiness is implied by these results.
 
 ## 5. Remaining freeze sequence
 

@@ -904,6 +904,10 @@ will be retained. Filing and cleanup require their own approvals; this is not de
 - [ ] Verify the restart documentation and required artifacts resolve from a clean clone of
   merged `main`, without depending on old worktrees or private file paths. This check requires
   no live/cloud access and grants no such authority.
+  Candidate clean-clone checks passed on `5b1fad26`: five source hashes match, 54/54 localhost
+  warm-up checks and 33/33 status-guard tests pass, and 117 relative paths resolve. The
+  [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md) records the scope; independent review and
+  verification of the later merged-main result remain outstanding.
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
   and [enhancements v5](../../roadmap_enhancements_v5.md) against `main@5d559478`; preserve v1–v4
