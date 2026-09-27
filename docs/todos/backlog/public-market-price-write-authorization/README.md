@@ -138,8 +138,9 @@ The exact dated owner message is quoted in the linked demo dashboard below.
 This is an accepted scope/risk disposition, not a database/user inventory or proof of clean
 historical prices, non-use of the old route, or absence of all anomalies. No audit or repair was
 performed; any future reactivation needs its own scope and authority. The advisor IDOR is separately CLOSED by
-its own #329 merge/deploy/probe evidence; the broader header-proof gap and retained advisor-code
-cleanup remain OPEN.
+its own #329 merge/deploy/probe evidence; broader header proof is CLOSED through #331.
+Retained advisor-code cleanup is merged through #332, not deployed; its smoke/config/seed
+follow-ups remain OPEN.
 
 See [market flow](../../../e2e-flows/market-data-service-e2e.md),
 [risk register](../../../architecture/RiskMitigationPlan.md) and

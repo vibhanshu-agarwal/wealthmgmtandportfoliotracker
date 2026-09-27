@@ -24,23 +24,25 @@ name is not itself a test against today's deployed Azure revisions.
 
 ## 2. Source-linked cases and limits
 
-**Accepted candidates — 2026-09-27 UTC, published for review as #331/#332, not yet on main:** header candidate `c647b6f0`
+**Accepted proof now on main — 2026-09-27 UTC:** #331 (`d439d3a2`) merges `c647b6f0`;
+#332 (`bd1c325f`) merges cleanup `52dd6e20`. Current source is reconciled against `bd1c325f`.
+Header proof `c647b6f0`
 adds `GatewayUserIdHeaderIntegrationTest` with 88 downstream-capture cases across protected,
 service-health/internal and rejected-auth paths, plus non-routed auth/actuator characterization.
 The verified full capture has 328 unit, 284 integration and 4 Wave 8 passes, no skips; all 74 XML
 hashes match. The `slim-image` gate was not included. Mutation evidence exercises failed stripping
 and identity rejection, accounting for redundant `remove`/`set` and security/filter protections.
 The [header item](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
-holds the precise sampling and proof limits; its delivery remains OPEN.
+holds the precise sampling and proof limits; its test-proof delivery is CLOSED.
 
 Advisor cleanup `3638aec2` plus `52dd6e20` retains but redesigns `AdvisorAnalyzeRemovalIT`:
 removed-path HTTP checks, user-path-variable detection and a controlled, proxy/generic-aware
 declared-client-field check under `default`. The old portfolio-stub runtime proof is removed
 with the client. Saved results: 1,421 unit passes, 7 live-only skips and 40 integration passes;
 restoring the service/route breaks the guard. Deleted advisor smoke tests have no active-path
-replacement yet. See the [cleanup record](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md#retained-code-cleanup--local-acceptance-not-delivery).
+replacement yet. See the [cleanup record](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md#retained-code-cleanup--merged-not-deployed).
 Codex inspected source and saved results, not new Java runs or live endpoints. The source-linked
-table below describes merged coverage, not an assertion that these candidates are already filed.
+table below describes merged coverage; this later documentation draft is not yet filed.
 
 **Merged follow-up evidence:** price-removal commit `83607f5d`, merged through #327 (`9c733f6d`), adds
 `MarketPriceWriteRemovalIT` (real Mongo/Kafka, required control write, unchanged documents/topic,
@@ -52,12 +54,13 @@ source/XML, not a new execution; full suite counts and independent reruns are re
 These tests are on main after the `8aa4035b` audit baseline. Heavy PR CI passed, but the tests alone
 do not prove live remediation. The separate scoped deploy 36259687567 and one owner-run Gate D
 `REMOVED`, exit 0, close the public write defect within the linked evidence limits. Tests cover only one
-protected spoofed-header case, not the entire [header-proof backlog](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
+protected spoofed-header case. #331 supplies the wider accepted
+[header proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md) within its limits.
 
 | Boundary / case | Representative existing source | Correct assertion and limit |
 |---|---|---|
 | Signup/login and auth errors | [AuthIntegrationTest](../../api-gateway/src/test/java/com/wealth/gateway/auth/AuthIntegrationTest.java), [AuthControllerUniformErrorTest](../../api-gateway/src/test/java/com/wealth/gateway/AuthControllerUniformErrorTest.java) | Gateway-owned credentials, uniform rejected login and empty-portfolio signup; local tests are not a new real account lifecycle run. |
-| JWT/user headers/origin | [JwtFilterIntegrationTest](../../api-gateway/src/test/java/com/wealth/gateway/JwtFilterIntegrationTest.java), [chain test](../../api-gateway/src/test/java/com/wealth/gateway/JwtAuthenticationFilterChainTest.java), [origin filter test](../../api-gateway/src/test/java/com/wealth/gateway/CloudFrontOriginVerifyFilterTest.java) | JWT rejection/non-401 cases and a unit assertion for injected subject. The named spoofing case does **not** inspect forwarded headers; direct spoof-removal regression proof remains OPEN. Origin checks depend on secret/profile, not every controller. |
+| JWT/user headers/origin | [JwtFilterIntegrationTest](../../api-gateway/src/test/java/com/wealth/gateway/JwtFilterIntegrationTest.java), [chain test](../../api-gateway/src/test/java/com/wealth/gateway/JwtAuthenticationFilterChainTest.java), [header capture IT](../../api-gateway/src/test/java/com/wealth/gateway/GatewayUserIdHeaderIntegrationTest.java), [origin filter test](../../api-gateway/src/test/java/com/wealth/gateway/CloudFrontOriginVerifyFilterTest.java) | Older named spoofing cases are status-only; #331 adds 88 scoped downstream-capture/rejection cases and mutation proof. Origin checks depend on secret/profile, not every controller; CloudFront checks are disabled in the header-capture fixture. |
 | Rate limits/demo writes | [ProductionRateLimitingIntegrationTest](../../api-gateway/src/test/java/com/wealth/gateway/ProductionRateLimitingIntegrationTest.java), [read-only properties](../../api-gateway/src/test/java/com/wealth/gateway/ReadOnlyEnforcementFilterPropertyTest.java) | Named ordinary/AI/auth buckets and exact B2 PUT exceptions, not a blanket "demo cannot save" rule. |
 | Whole-set composition/conflicts | [CompositionControllerIT](../../portfolio-service/src/test/java/com/wealth/portfolio/composition/CompositionControllerIT.java), [ConcurrentCompositionIT](../../portfolio-service/src/test/java/com/wealth/portfolio/composition/ConcurrentCompositionIT.java) | Decimal desired-set write with expected version; 400/409 contract, transaction/no-op behavior and user isolation in scoped cases. |
 | Stored-price read response / event serialization | [MarketPriceControllerTest](../../market-data-service/src/test/java/com/wealth/market/MarketPriceControllerTest.java), [wire contract](../../market-data-service/src/test/java/com/wealth/market/PriceUpdatedEventProducerWireContractTest.java) | Controller GET fixtures assert caps, unavailable rows and change fields; the wire test asserts serialized event fields. Neither is an HTTP manual-write test or broker-delivery proof. Stored reads/no Yahoo and persist/send ordering are source facts in the market guide, not extra assertions credited to these tests. |
@@ -92,12 +95,13 @@ FX-pair semantics or model-text reliability. The source-confirmed
 [advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md)
 is CLOSED by the separate route-removal merge/deploy/own-ID probe evidence, not by the prior
 isolation suite. The live sample did not enumerate other IDs; reviewed removed mapping/regression
-supports route-wide absence. Retained advisor-code cleanup remains OPEN. The
+supports route-wide absence. Retained advisor-code cleanup is merged through #332, not deployed;
+active sentiment cloud-smoke replacements, inert settings and seed/cache retirement remain OPEN. The
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 is separately CLOSED after merge/deploy/probe, not through that isolation suite or a historical-data audit.
 Optional Gate E is skipped by owner decision, not performed; no historical-data proof follows.
 The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
-is OPEN without a confirmed current bypass. Insight cache atomicity, outbox delivery, event-ID
+is CLOSED through #331 within its test scope; it was not a confirmed current bypass. Insight cache atomicity, outbox delivery, event-ID
 dedup, sustained load/failover and cross-cloud recovery remain separate proof/design work.
 This inventory authorizes no new tests, changes or live run and reopens no original closed item.
 

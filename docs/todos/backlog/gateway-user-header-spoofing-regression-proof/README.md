@@ -1,16 +1,20 @@
 # Gateway user-header spoofing regression proof
 
-> **Approval boundary:** the owner approved local implementation and offline verification.
-> Code PR #331 is open; its merge and push/PR and merge of this status update need explicit approval. No live
+> **Approval boundary:** owner-approved code PR #331 is merged. Push/PR and merge of this
+> later documentation update still need explicit approval. No live
 > spoofing test, deployment, cloud access or Gate E audit is authorized by this record.
 
-**Status:** OPEN — broader regression proof accepted at `c647b6f0` and published for review
-as [#331](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/331); merge pending. Not a confirmed current bypass.
+**Status:** CLOSED — fixed/completed within the regression-test scope; accepted `c647b6f0`
+merged through [#331](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/331)
+at `d439d3a23b0fffb3526b940d9b68f1a7fa3102c2` (2026-09-27 05:57:00 UTC).
+This was a missing test-proof item, not a confirmed current bypass or a deployed behavior change.
 **Priority:** Medium (security regression coverage).
 **Origin:** 2026-09-26 UTC architecture review against `main@8aa4035b`.
 **Implementation:** partial coverage at `83607f5d`, merged through #327 (`9c733f6d`); the broader
-test-only candidate is `c647b6f0` on `main@e03d6cc4`. No production code changes. This is local
-acceptance, not delivery on main or exhaustive security certification.
+test-only change is `c647b6f0`, based on `main@e03d6cc4`. No production code changes. Codex
+verified GitHub's merged head/time and that the merge tree equals the reviewed head exactly.
+All eight required PR checks passed before the owner-approved merge, as reported by Claude.
+Delivery on main closes this scoped proof gap, not exhaustive security certification.
 
 ## Accepted local proof — 2026-09-27 UTC
 
@@ -45,8 +49,8 @@ Privately retained capture hashes (SHA-256): metadata
 `5b4e648256a93fe2f672eb4978f4392583fa87b548629dc062af9510d9532213`;
 console `4ad4d668fa907f83bfd48d0b4a797971c9c93e13369e7ed119ed51bb535c1d53`;
 74-entry XML hash list `04f69e9b88f556897f676ef63804c400d424e16e42ef4e4d769bdffb0b662ef8`.
-Publication must refresh the merge/status basis; this item stays OPEN until accepted delivery
-is recorded. The remaining sections preserve the original gap and its closure contract.
+The accepted proof is now delivered on main. This later closure record is filed only when its
+owner-authorized docs PR merges. The remaining sections preserve the original gap and contract.
 
 ## Original gap and coverage on main through #330
 

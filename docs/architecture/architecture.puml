@@ -41,7 +41,7 @@ Kafka --> Portfolio : portfolio-group projection
 Kafka --> Insight : insight-group cache updates
 Portfolio --> Kafka : rejected/exhausted records to market-prices.DLT
 Insight --> Redis : prices / observation window / caches
-Insight --> AI : optional resolution / sentiment / advisor
+Insight --> AI : optional resolution / sentiment
 Gateway ..> Telemetry : observations
 Portfolio ..> Telemetry : observations
 Market ..> Telemetry : observations
@@ -59,14 +59,15 @@ note bottom of Insight
   scoped deploy 36285996570 attempt 1 and one bound own-ID REMOVED probe.
   Source/regression supports route-wide removal; no cross-user exploit test.
   Saved workflow/terminal evidence does not exclude out-of-band Azure changes.
-  Retained advisor-code cleanup and broader header proof remain OPEN.
-  No current HTTP advisor-to-Portfolio path; retained implementation is unused.
+  Advisor implementation removed in source by #332, not deployed.
+  Header proof delivered by #331 within its recorded limits.
+  No current HTTP advisor-to-Portfolio path; smoke/config/seed follow-ups stay open.
 end note
 note bottom of Gateway
   Internal seed/reset routes are public, no JWT/origin/route limiter.
   Downstream shared internal key gates those operations.
   Public market POST removed in #327; scoped deploy and Gate D confirmed removal.
-  Historical-price integrity is not certified; optional audit remains open.
+  Historical-price integrity is not certified; optional audit skipped by owner.
   Manual demo-reset response carries an opaque replica token, not that key.
 end note
 note bottom of Frontend

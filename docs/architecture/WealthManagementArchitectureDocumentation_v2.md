@@ -101,8 +101,9 @@ tested by the original source audit; later removal/deploy/probe closure is separ
 Reviewed commits `435f61c6` and `35779e2e`, merged through
 [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at `6a82f3da`,
 remove that route and its controller service injection, with no alias. The analysis implementation
-remains, but no other production HTTP
-handler calls it. Any future exposure must use the gateway-authenticated subject. Saved local
+was initially retained without another HTTP caller; #332 (`bd1c325f`) now removes it and its
+advisor adapters from source, not the deployed artifact. Any future exposure must use the
+gateway-authenticated subject. Saved local
 RED/GREEN evidence and reported re-exposure mutants support source remediation, not a deployed
 security claim. Code publication/merge and owner-authorized scoped deployment are complete:
 run 36285996570, attempt 1, at `6a82f3da` binds insight revision `--0000082` / digest `aa1e9e3c…`
@@ -112,7 +113,9 @@ matching before/after deploy bindings. The linked backlog item is CLOSED by remo
 and that sample, not a waiver. Runtime evidence is Claude's terminal transcription; deployment
 identity rests on saved workflow logs, not a fresh Azure read. The sample used only the caller's
 own ID; reviewed source/regression supports route-wide removal. Out-of-band Azure changes are not
-excluded. Retained advisor-code cleanup and broader header-proof work remain OPEN.
+excluded. Advisor cleanup is complete in source through #332, not deployed; broader header proof
+is CLOSED through #331 (`d439d3a2`) within its test scope. Active sentiment smoke replacements,
+inert URL settings and seed/cache retirement remain separate OPEN follow-ups.
 
 ## 4. Holdings, valuation and analytics
 
@@ -179,7 +182,8 @@ Refresh success does not imply every ticker updated or both consumers are caught
 
 ## 6. Insights and AI attribution
 
-[Insight flow](../e2e-flows/insight-service-e2e.md) distinguishes bulk, per-ticker, chat and advisor.
+[Insight flow](../e2e-flows/insight-service-e2e.md) distinguishes bulk, per-ticker, chat and the
+historical removed advisor path. Current-source follow-up is reconciled against `main@bd1c325f`.
 
 Bulk market summaries use stored Redis facts, without per-ticker model calls. Trends mean change
 over the stored observation window, not necessarily 24 hours. Per-ticker sentiment and chat may
@@ -189,10 +193,11 @@ chat is not a delivered multi-turn portfolio-context/FA/TA assistant.
 Azure uses Azure OpenAI adapters with managed identity as the default source configuration.
 The Terraform deployment alias remains `gpt-4o-mini`, while its configured model is
 `gpt-4.1-mini` version `2025-04-14`; an alias is not the model identity or live attestation.
-Bedrock sentiment/advisor adapters are real retained provider adapters, not the old randomized
+Bedrock sentiment adapters are real retained provider adapters, not the old randomized
 mock described in the previous risk document. Bedrock has no asset-resolution adapter:
 `!azure-ai` selects the mock resolver returning UNKNOWN, while deterministic preflight still
-works. Other profiles can use rule-based sentiment/advisor adapters.
+works. Other profiles can use rule-based sentiment adapters. Portfolio-advisor adapters are
+deleted by #332; active sentiment, chat resolution and the seed/cache eviction contract remain.
 
 `sentimentSource` identifies the sentiment adapter/output, possibly cached; it does not prove
 a new model invocation, the asset resolver's provenance or that all natural-language text is

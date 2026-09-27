@@ -80,7 +80,9 @@ at the audited baseline. It is now CLOSED by removal through #329 (`6a82f3da`), 
 check passing. Runtime evidence is the saved terminal transcription; deployment identity is from
 workflow artifacts, not a fresh Azure read. Out-of-band Azure changes are not excluded. The old
 handler's exploitability is unverified; missing portfolio URL wiring was not authorization.
-Retained advisor-code cleanup and the broader header-proof gap remain OPEN.
+Retained advisor-code cleanup is merged through #332 (`bd1c325f`), not deployed; the broader
+header-proof gap is CLOSED through #331 (`d439d3a2`) within its test scope. Current-source
+follow-up is reconciled against that combined merge; smoke/config/seed follow-ups remain OPEN.
 
 ## Read next
 

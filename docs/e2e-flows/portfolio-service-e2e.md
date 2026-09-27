@@ -32,8 +32,9 @@ this trusted header, without checking the gateway subject. That source-confirmed
 [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is not covered by
 the normal portfolio endpoint's subject-binding claim. It is now CLOSED by removing that route,
 scoped deployment and one bound owner-run own-ID probe, not by a change to portfolio-service's
-header trust or proof of every downstream authorization path. Retained advisor-code cleanup and
-the broader header-proof gap stay OPEN.
+header trust or proof of every downstream authorization path. Retained advisor-code cleanup is
+merged through #332 (`bd1c325f`), not deployed; header proof is CLOSED through #331 (`d439d3a2`).
+The historical fetch described below is not present in current insight-service source.
 Base JVM target is localhost:8081, Compose uses `portfolio-service:8081`, and Azure uses the
 internal ACA name at ingress port 80, forwarded to service port 8080.
 
@@ -198,7 +199,8 @@ ingress and scale-to-zero. Source defines Neon PostgreSQL and Aiven Kafka integr
 retained AWS Lambda configuration is restart context, not a newly verified standby deployment.
 The historical advisor **fetch** selected the user from its public analyze-path argument,
 not a callback or the browser chat's portfolio-context pipeline. That route is now removed,
-deployed and live-validated within its separate closure scope; the retained service is unused
-by production HTTP handlers and its cleanup remains OPEN. The original authorization flaw,
+deployed and live-validated within its separate closure scope; #332 (`bd1c325f`) now deletes the
+unused implementation from source, not the deployed artifact. Smoke/config/seed follow-ups stay
+OPEN. The original authorization flaw,
 unverified old Azure exploitability and closure limits are recorded in the
 [insight guide](insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits).

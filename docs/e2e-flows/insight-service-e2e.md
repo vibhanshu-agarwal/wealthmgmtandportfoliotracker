@@ -15,6 +15,11 @@ is CLOSED, based on saved workflow logs and Claude's terminal transcription, not
 or live request by this audit. The baseline path below is finding context,
 not a route present in current main.
 
+**Current-source follow-up — 2026-09-27 UTC:** #332 (`bd1c325f`) removes the unused advisor
+implementation/adapters/tests; #331 (`d439d3a2`) delivers header regression proof. This guide is
+reconciled against merged source at `bd1c325f`. The cleanup has not been deployed by a recorded
+GitHub workflow; the previous route-removal deployment remains the operational evidence basis.
+
 ## 1. Browser entry and distinct requests
 
 The AI Insights page combines `MarketSummaryGrid` and `ChatInterface`.
@@ -97,9 +102,9 @@ has conversation memory, portfolio context or a multi-turn reasoning session.
 
 ## 4. Adapter attribution, caching and failures
 
-The sentiment/advisor adapters and asset resolver do **not** have identical profile coverage:
+The sentiment adapters and asset resolver do **not** have identical profile coverage:
 
-| Profile selection | Sentiment / portfolio advisor | Asset-resolution client |
+| Profile selection | Sentiment | Asset-resolution client |
 |---|---|---|
 | Neither `bedrock` nor `azure-ai` | Deterministic local/CI adapters, no cloud LLM | Mock resolver returning `UNKNOWN` |
 | `azure-ai` | Azure OpenAI adapters, Managed Identity/Entra configured in the demo stack | Azure OpenAI resolver |
@@ -113,7 +118,9 @@ tickers. Enabling or changing provider profiles is not part of this audit.
 [AzureOpenAiInsightService](../../insight-service/src/main/java/com/wealth/insight/infrastructure/ai/AzureOpenAiInsightService.java)
 caches sentiment under a provider-qualified key such as `AZURE_OPENAI:{ticker}`.
 [CacheConfig](../../insight-service/src/main/java/com/wealth/insight/infrastructure/redis/CacheConfig.java)
-sets sentiment TTL to 60 minutes and portfolio-analysis TTL to 30 minutes. Cache-abstraction
+sets sentiment TTL to 60 minutes. The former portfolio-analysis cache retains a 30-minute TTL
+only for the internal seeder's eviction contract; the advisor writer is removed in current source.
+Its retirement and dependent E2E setup are separate open work. Cache-abstraction
 errors are treated as misses; this does not make the underlying Redis market-data reads immune
 to failure. A miss can incur model latency and cost.
 
@@ -130,12 +137,12 @@ profile. Rule-based source denotes the deterministic adapter.
 
 ## 5. Separate portfolio advisor path and limits
 
-At the audited baseline, [InsightService](../../insight-service/src/main/java/com/wealth/insight/InsightService.java) calls
+At the audited baseline, the former `InsightService` (deleted by #332) called
 `GET /api/portfolio` at its configured portfolio-service URL, setting `X-User-Id` from the
 `/{userId}/analyze` path argument, and delegates the first returned portfolio to `InsightAdvisor`.
 It does not feed that result into `POST /api/chat`.
 
-This is a source-confirmed **cross-user authorization flaw (IDOR)**: the gateway requires a valid
+This was a source-confirmed **cross-user authorization flaw (IDOR)**: the gateway required a valid
 login, including the restricted showcase login, but this path never compares its target ID with
 the gateway-authenticated subject. A caller knowing another user's ID can request that user's
 derived risk score, concentration warnings and rebalancing suggestions when dependencies work;
@@ -144,26 +151,29 @@ The [finding](../todos/backlog/portfolio-advisor-cross-user-authorization/README
 the later route-removal merge/deploy/probe evidence, not by the earlier portfolio-isolation suite
 or a decision to accept the flaw as harmless.
 
-Reachability is environment-dependent. The checked-in Azure insight-service environment does not
-set `PORTFOLIO_SERVICE_URL`; its application default is `http://localhost:8081`, so the fetch is
-expected to fail absent another override. This is **not live-verified** and not a security control.
-Compose and retained AWS configuration supply the portfolio URL. Correct authorization before
-making this advisor reachable or adding the missing Azure setting. No live exploit or configuration
-change was performed by the documentation audit.
+Historical reachability was environment-dependent: Azure source omitted `PORTFOLIO_SERVICE_URL`,
+while the old application default was `http://localhost:8081`; failure was expected absent an
+override, not live-verified or an authorization control. Compose and parked AWS still carry inert
+URL settings, but #332 deletes the consuming application property and advisor client. Removing
+those settings is separate open cleanup. Any future advisor must derive the authenticated subject.
+No live exploit or configuration change was performed by this documentation audit.
 
-The merged removal deletes the controller route and its `InsightService` injection, not
-the retained analysis code. No other production HTTP handler calls that service. The recording
+The #329 removal deleted the controller route and its `InsightService` injection, initially
+retaining analysis code; #332 subsequently deletes that implementation and its adapters. The recording
 portfolio-stub regression is RED before removal and GREEN on `35779e2e`; four re-exposure mutants
 are reported caught. Codex inspected source and saved evidence, without rerunning Java tests.
 See the linked backlog for counts, proof limits and delivery gates. Publication, merge and scoped
 deployment and one owner-run live probe are complete. The item is CLOSED within route-removal scope.
 The probe named only its own ID; route-wide absence also relies on the reviewed mapping removal and
-regression. The saved bindings cannot exclude out-of-band Azure changes. Retained advisor-code
-cleanup and the broader header-proof gap remain OPEN; no chat/model reliability proof follows.
+regression. The saved bindings cannot exclude out-of-band Azure changes. Advisor cleanup is
+complete in source, not deployed; its redesigned `AdvisorAnalyzeRemovalIT` checks HTTP mappings
+and declared-client fields under the recorded structural limits, not the old portfolio-stub trace.
+Header proof is CLOSED through #331. Active-path cloud-smoke replacements and the settings/cache
+follow-ups remain OPEN; no chat/model reliability proof follows.
 
 Formal per-user Sharpe/Sortino metrics, richer FA/TA conversation and exploratory analysis are
-[deferred v5 requests](../../roadmap_enhancements_v5.md). Source availability of an advisor or a
-name resolver is not acceptance of those future capabilities or all natural-language/model edges.
+[deferred v5 requests](../../roadmap_enhancements_v5.md). The removed advisor was not acceptance
+of those capabilities; the name resolver is not proof of all natural-language/model edges.
 
 ## 6. Request and event flow
 
