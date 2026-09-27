@@ -124,10 +124,17 @@ their old "not started" and "next" statements are not the current work queue.
 ## 🕒 Deferred Product Enhancements — Owner Requests (2026-09-26)
 
 All three requests are **DEFERRED / NOT STARTED**, for a much later revisit—months or a year away.
-They have no committed priority, delivery date, detailed design or implementation authorization.
+Owner priorities (2026-09-27 UTC): **R1 High**, **R2/R3 Medium**. They have no committed delivery
+date, detailed design or implementation authorization. Use the restored
+[v5 prioritization matrix](roadmap_enhancements_v5.md#prioritization-matrix--resume-here) when resuming.
 
 - **R1 — Portfolio Sharpe Ratio and Sortino Ratio:** add risk-adjusted performance analysis for
-  each user's portfolio, distinguishing total volatility from downside risk. At restart, first
+  each user's portfolio, distinguishing total volatility from downside risk. **Include explanatory
+  charts/graphs and plain-language interpretation as part of R1 itself; standalone ratio numbers
+  are insufficient. AI-assisted guidance on how to improve the ratios is also part of R1**, not
+  only the separate FA/TA chatbot goal. Keep guidance grounded in portfolio data and disclose
+  assumptions; chart choices and detailed feature design remain deferred until after the freeze.
+  At restart, first
   assess usable return history and agree lookback, annualization, risk-free/target return, FX and
   cash-flow/holdings-history conventions; incomplete data must not produce misleading ratios.
 - **R2 — More intelligent FA/TA chatbot:** move beyond a ticker snapshot to selectable
@@ -137,9 +144,14 @@ They have no committed priority, delivery date, detailed design or implementatio
 - **R3 — More engaging charts and analysis:** explore complementary views such as drawdown,
   benchmark comparison, risk/return and allocation/concentration analysis, with interactive
   exploration. Choose a small useful set after reviewing data availability and user value; these
-  are examples to explore, not promised charts.
+  are examples to explore, not promised charts. R3 is additional exploration, not a prerequisite
+  for the explanatory charts/graphs required within High-priority R1.
 
 ## 🎯 Future Architectural Goals
+
+All remaining goals below have **Medium** roadmap priority under the owner's 2026-09-27
+direction. The v5 matrix also retains parked AWS reactivation. These priorities do not change
+the engineering backlog's separate defect/security priorities or authorize implementation.
 
 - **AI service contract evolution:** `insight-service` already exists. Explore a typed, low-latency boundary (e.g. gRPC) or a managed agent service only when justified by the richer analysis use cases; this is not a missing fourth service or a committed redesign.
 - **Multi-Provider Market Data Aggregation:** The current baseline is **Yahoo Finance** (`external-market-data.provider: yahoo`). Add institutional-grade providers (e.g., **Alpha Vantage**, **Polygon.io**) behind an Adapter/Strategy abstraction layered on `ExternalMarketDataClient` to enable high-availability failover, cross-provider price reconciliation/anomaly detection, and vendor-lock-in avoidance.
@@ -154,6 +166,14 @@ risk, idle Kafka consumer policy, corporate-action decisions and verification ga
 feature may still have open follow-ups; accepted demo debt is not "fixed" or "no longer relevant".
 
 ## Restart and Freeze Handoff
+
+**Git-only restart rule — owner direction, 2026-09-27 UTC:** anything needed to resume must be
+tracked in Git and merged into `main` through a reviewed, owner-authorized PR. Loose worktree
+documents, unpublished branches, chat history and agent memory are not durable restart inputs.
+Required plans, decisions, operator scripts, safe configuration templates and restart instructions
+must be filed before freeze; otherwise treat them as expendable, not assumed available later.
+Keep secrets and raw sensitive evidence out of Git; preserve necessary sanitized summaries,
+provenance and limitations instead. This rule does not authorize deletion or publication.
 
 Before picking up feature development, read the dashboard, v5 and the backlog index; verify the
 actual deployed/configuration baseline under approved scope and revalidate dependencies/data

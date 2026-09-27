@@ -33,6 +33,9 @@ Cleanup query/count and login-proof limitations remain as recorded in the dashbo
 1. Obtain the privately retained reviewed operator script and `demo-warmup.ps1`, with their
    accepted versions/hashes. They are **not shipped by this guide**. If unavailable, stop and
    recover/review the kit; do not assume a workstation-specific historical path still exists.
+   **Freeze filing gap:** before the Git-only restart handoff is complete, the required scripts,
+   tests and instructions must be sanitized, reviewed and merged into `main`; private retention
+   or a historical hash alone is insufficient.
 2. Confirm the approved target/build/account and that no other session or E2E workflow uses
    the account during the walkthrough. Resolve credentials through approved private inputs;
    never copy passwords, JWTs or raw authenticated responses into published evidence.
@@ -113,15 +116,24 @@ they are not automatic acceptance for later source or newly reachable delete/wri
 
 ## 6. Freeze and later restart
 
-Before parking the project, file the reviewed roadmap/runbook/backlog reconciliation and a clear
-handoff of private kit/evidence locations to the owner. Brainstorm the LinkedIn, resume, PPT and
+Before parking the project, file the reviewed roadmap/runbook/backlog reconciliation and every
+required operator/warm-up script, safe configuration template, decision and restart instruction
+in Git through reviewed, owner-authorized PRs merged into `main`. **Owner direction,
+2026-09-27 UTC: restart must rely on merged Git, not loose worktree documents, unpublished
+branches, chat history or agent memory.** Anything not merged is expendable and must not be a
+required restart dependency. Keep secrets/raw sensitive evidence out of Git; file needed
+sanitized evidence summaries and their limitations. A private-path inventory is not a substitute
+for filing. Verify the required non-secret artifacts and links from a clean clone before declaring
+the handoff complete; this guide records that requirement, not its completion.
+Brainstorm the LinkedIn, resume, PPT and
 video package before creating it. Choose maintenance responsibility for credentials, the manual
 observability audit and any retained cloud costs; do not assume "frozen" suspends Jobs/resources.
 No shutdown, rotation, schedule change, cleanup or recurring automation is authorized here.
 
 On restart: read the dashboard and backlog first; refresh Git state and inspect source/workflow
-drift; inventory retained private prerequisites without exposing values; obtain authority for any
-needed live refresh. Classify historical acceptance versus current evidence before executing a
+drift; use the merged scripts/runbooks and re-establish credentials through approved secure
+sources without assuming an old local secret file survives; obtain authority for any needed live
+refresh. Classify historical acceptance versus current evidence before executing a
 new packet. Do not recreate closed/superseded backlog work from old runbook prose.
 
 Private A4 `pw-output/` retains its agreed after-demo cleanup disposition. The post-#320 run's
