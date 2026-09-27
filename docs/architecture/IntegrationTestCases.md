@@ -72,8 +72,10 @@ The accepted live limitations remain those in the dashboard. Source tests alone 
 unknown-currency rendering, header-strip non-USD coverage, analytics-unavailable fallback,
 FX-pair semantics or model-text reliability. The source-confirmed
 [advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md)
-is OPEN with owner disposition pending, not a hypothetical improvement or covered by the prior
-isolation suite. The [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
+is CLOSED by the separate route-removal merge/deploy/own-ID probe evidence, not by the prior
+isolation suite. The live sample did not enumerate other IDs; reviewed removed mapping/regression
+supports route-wide absence. Retained advisor-code cleanup remains OPEN. The
+[public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 is separately CLOSED after merge/deploy/probe, not through that isolation suite or a historical-data audit.
 Optional Gate E remains open. The [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
 is OPEN without a confirmed current bypass. Insight cache atomicity, outbox delivery, event-ID

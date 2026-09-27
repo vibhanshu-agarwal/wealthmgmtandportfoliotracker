@@ -25,8 +25,9 @@ The six reusable references above were corrected in this audit. Detailed source 
 the four [service E2E guides](../e2e-flows/); their companion reconciliation is also a local
 candidate until reviewed and merged. Operator instructions are in
 [Current operations](../runbooks/CURRENT_OPERATIONS.md).
-The review follow-up records the OPEN, source-confirmed
-[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md), the subsequently
+The review follow-up records the source-confirmed
+[advisor IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md), now CLOSED
+by route removal, scoped deployment and one bound owner-run probe, the subsequently
 fixed [public price-write hole](../todos/backlog/public-market-price-write-authorization/README.md), plus
 the [header-spoofing test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
 It distinguishes untested live reachability from source defects, corrects profile/failure/test
@@ -34,7 +35,10 @@ claims and adds the manual repair Job/reset token. Independent follow-up review 
 the publication rule above; prior runtime acceptance does not cover these new findings.
 The price-write item is now CLOSED after #327, scoped deploy 36259687567 and one owner-run
 Gate D `REMOVED`, exit 0; its separately recorded closure certifies no past-data cleanliness.
-Optional Gate E and the advisor/header-proof work remain open.
+The advisor closure separately rests on #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1
+and the saved own-ID Gate D `REMOVED`, exit 0, with summary smoke check passing. Optional Gate E,
+the broader header-proof gap and retained advisor-code cleanup remain OPEN. Neither closure
+certifies old exploitability or excludes out-of-band Azure changes.
 
 ## Historical records — do not execute as current plans
 

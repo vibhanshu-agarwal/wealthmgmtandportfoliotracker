@@ -55,11 +55,12 @@ end note
 note bottom of Insight
   Bulk summaries use stored facts without model calls.
   Source labels can describe cached sentiment.
-  Path-ID advisor has an OPEN source-confirmed IDOR.
-  Azure source omits the portfolio URL (default localhost:8081).
-  Live reachability is unverified; missing wiring is not authorization.
-  Advisor-to-Portfolio link omitted: not wired by this Azure source.
-  Compose / retained AWS source supplies the target URL instead.
+  Historical path-ID advisor IDOR is CLOSED by route removal (#329),
+  scoped deploy 36285996570 attempt 1 and one bound own-ID REMOVED probe.
+  Source/regression supports route-wide removal; no cross-user exploit test.
+  Saved workflow/terminal evidence does not exclude out-of-band Azure changes.
+  Retained advisor-code cleanup and broader header proof remain OPEN.
+  No current HTTP advisor-to-Portfolio path; retained implementation is unused.
 end note
 note bottom of Gateway
   Internal seed/reset routes are public, no JWT/origin/route limiter.

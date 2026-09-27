@@ -96,7 +96,7 @@ This is a source-confirmed [IDOR](../todos/backlog/portfolio-advisor-cross-user-
 not proven caller-owned access. Azure's checked-in insight environment omits the portfolio URL
 and the default points to localhost:8081; absent another override it is expected to fail. This
 is not live-verified or a security control. Compose/AWS source supplies the URL. No exploit was
-tested by this audit; the OPEN finding has no owner non-blocking waiver.
+tested by the original source audit; later removal/deploy/probe closure is separate, not a waiver.
 
 Reviewed commits `435f61c6` and `35779e2e`, merged through
 [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at `6a82f3da`,
@@ -107,8 +107,12 @@ RED/GREEN evidence and reported re-exposure mutants support source remediation, 
 security claim. Code publication/merge and owner-authorized scoped deployment are complete:
 run 36285996570, attempt 1, at `6a82f3da` binds insight revision `--0000082` / digest `aa1e9e3c…`
 in saved workflow logs. Other apps/the refresh Job were unchanged within the snapshot comparison's
-fields. The linked backlog item stays OPEN pending separately approved Gate D live validation;
-deployment identity is not itself evidence of the route's response, nor a fresh Azure read.
+fields. One owner-run Gate D returned `REMOVED`, exit 0, with a passing summary smoke check and
+matching before/after deploy bindings. The linked backlog item is CLOSED by removal, deployment
+and that sample, not a waiver. Runtime evidence is Claude's terminal transcription; deployment
+identity rests on saved workflow logs, not a fresh Azure read. The sample used only the caller's
+own ID; reviewed source/regression supports route-wide removal. Out-of-band Azure changes are not
+excluded. Retained advisor-code cleanup and broader header-proof work remain OPEN.
 
 ## 4. Holdings, valuation and analytics
 

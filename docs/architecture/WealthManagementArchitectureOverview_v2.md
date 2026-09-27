@@ -73,9 +73,13 @@ was not tested and optional historical-price audit Gate E remains open.
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model
 call. The separate path-ID portfolio advisor is not the ticker-chat pipeline and has a
-source-confirmed [cross-user authorization flaw](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
-Azure source omits its portfolio URL, so reachability is expected to fail absent another override;
-that is unverified live and is not an authorization control. The defect remains OPEN.
+source-confirmed [cross-user authorization flaw](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md)
+at the audited baseline. It is now CLOSED by removal through #329 (`6a82f3da`), scoped deploy
+36285996570 attempt 1 and one bound owner-run own-ID probe `REMOVED`, exit 0, with summary smoke
+check passing. Runtime evidence is the saved terminal transcription; deployment identity is from
+workflow artifacts, not a fresh Azure read. Out-of-band Azure changes are not excluded. The old
+handler's exploitability is unverified; missing portfolio URL wiring was not authorization.
+Retained advisor-code cleanup and the broader header-proof gap remain OPEN.
 
 ## Read next
 

@@ -1,17 +1,16 @@
 # Portfolio advisor cross-user authorization (IDOR)
 
-> **Approval boundary:** the code fix is merged through #329 and its owner-authorized scoped
-> deployment is complete. Gate D live validation and any further cloud/configuration changes
-> still need the relevant owner approval; completed Gates A–C do not grant that authority.
+> **Approval boundary:** owner-authorized Gates A–D are complete. Publication of this closure
+> and any further deployment, live operation or retained-code cleanup need separate authority.
 > Push/PR and merge of this documentation also require explicit approval. None is granted here.
 
-**Status:** OPEN — route removal merged through #329 and deployed; live validation pending.
+**Status:** CLOSED — fixed by route removal, deployed and live-validated on 2026-09-27 UTC.
 **Priority:** High (security). **Origin:** 2026-09-26 UTC E2E guide review against `main@8aa4035b`.
 **Implementation:** removal `435f61c6` plus `35779e2e` merged through
 [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329) at
 `6a82f3da32c8679c288d348f002fae7e4f378b6a` (2026-09-26 20:49:07 UTC).
-**Demo disposition:** no non-blocking waiver; earlier demo findings and multi-user suites do not
-close this item. Live Azure reachability of the old route remains unverified.
+**Closure scope:** removal of the unused public advisor route, not a non-blocking waiver or
+broader security certification. The old handler's Azure exploitability remains unverified.
 
 ## Finding and impact
 
@@ -51,7 +50,7 @@ The chosen treatment removes the unused public endpoint, with no replacement or 
 controller no longer injects `InsightService`; its remaining health/summary routes and chat are
 unchanged. The retained advisor service is not called by another production HTTP handler. Any
 future exposure must derive the target from the trusted gateway-authenticated subject, not a
-caller-selected ID. Deployment identity is recorded below; endpoint behavior still needs Gate D.
+caller-selected ID. Deployment identity and the separately authorized Gate D result are below.
 
 `AdvisorAnalyzeRemovalIT` uses a recording fake portfolio-service and a positive control call.
 Its original-route checks cover missing, ordinary and showcase identity fixtures; its structural
@@ -72,13 +71,13 @@ Main's four post-merge CI workflows subsequently passed at the pinned merge. Cod
 deployment artifacts alone do not establish the live endpoint's behavior or close this item.
 
 The deployment/probe instructions are accepted for preparation (reviewed packet `3508ff43…`,
-with later header-only status revisions). All 24 handoff manifest entries verify at this review. The unchanged
-probe `0f32ebd6…` and launcher `a721832b…` were reviewed; Codex reran 31 offline tests in that
+with later header-only status revisions). All 25 handoff manifest entries verify at this review.
+The unchanged probe `0f32ebd6…` and launcher `a721832b…` were reviewed; Codex reran 31 offline tests in that
 packet review. The probe targets only the signed-in account's subject, distinguishes the default
 unmapped-route 404 from the old business responses, and never retries the probe. Its summary
 read is an endpoint/schema smoke check that accepts an empty map, not proof of populated data.
 
-## Completed deployment and remaining closure step
+## Completed deployment and live closure
 
 Publication, merge and scoped deployment (Gates A–C) are complete. The saved baseline is run 36092375156,
 attempt 1, at `db51cf5b`, with insight revision `--0000081` and digest `dad55386…`; later saved
@@ -94,13 +93,33 @@ compared fields. Frontend, seed and verify were skipped as intended. Codex check
 their hash and GitHub run/attempt/commit; it made no new Azure read or live request. Matching
 snapshots do not rule out intervening or subsequent out-of-band configuration changes.
 
-Gate D still needs separate owner approval for one live probe. Immediately before and after it,
-bind the saved digest/revision evidence and GitHub checks to run `36285996570`, attempt 1 and
-`6a82f3da`, checking for a newer deployment or changed attempt. These checks do not exclude
-direct Azure changes. Any failed or ambiguous probe/read is inconclusive: stop, no automatic
-rerun or rollback. Closure requires the authorized deployment and the bound REMOVED result with
-the limited summary smoke check passing; it does not certify chat/model reliability.
-No probe, further deployment, exploit or cleanup of the retained implementation is authorized here.
+The owner ran Gate D once at approximately 02:05 UTC on 2026-09-27. Claude transcribed the terminal
+output: `REMOVED`, exit 0; two health GETs (no response, then 200), one login (200), one own-ID
+analyze GET (404 classified as Spring's default error body for the exact path), and one summary
+GET (200, 158 well-formed ticker summaries). The request budget was met, credentials were dropped,
+and no rerun is recorded. The probe's body checks are hash-pinned; raw live bodies are not preserved
+in this transcript, and Codex did not observe or repeat the live requests.
+
+Saved binding checks at **02:03:23 UTC** and **02:09:47 UTC** agree: deploy run `36285996570`,
+attempt 1, head `6a82f3da`, completed/successful and newest, with no newer run or attempt.
+Codex rehashed the evidence and checked its consistency with the accepted probe and deploy record.
+The closure condition is met. This is a single own-ID runtime sample, not a live cross-user exploit
+test or an enumeration of all IDs; the route-wide conclusion also rests on the reviewed removed
+mapping and regression test. The 158 summaries establish this response was populated and schema-valid,
+not that every catalog ticker or quote was present, fresh or accurate. No chat/model proof follows.
+
+**Evidence hashes (SHA-256):** terminal/binding transcript
+`1e7a8c74c515ed2166c54277028b1b0b6f1f46b562aae0310e466a534623a296`;
+deploy-log copy `cf978f907664b9cd5fa4e9a98fc4605723a89cdfb8fd5bd1913223367ff4ed43`;
+25-entry manifest `c0219e6d1d3b6a03220b750b146156801ba08bba1315cd0d2d317a46788f4d7c`.
+These bind privately retained evidence, not files published by this documentation update.
+
+**Still open:** GitHub binding cannot exclude out-of-band Azure changes. The broader
+[header-proof gap](../gateway-user-header-spoofing-regression-proof/README.md) remains OPEN.
+Removing the retained advisor service/adapters/tests is separate **OPEN cleanup**, not required
+for this route-removal closure and not implemented or authorized here. Historical exploitability,
+other endpoints, peer-service trust and chat/model reliability are not certified. No further live
+operation, rerun, deployment or cleanup is authorized by this record.
 
 See the [insight flow](../../../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
 [portfolio trust boundary](../../../e2e-flows/portfolio-service-e2e.md#2-endpoints-and-trust-boundary)

@@ -131,8 +131,9 @@ fixtures, and normal price reads/refresh still work. Verify neither Mongo nor Ka
 denial. Independently review the patch and obtain separate deployment/validation authority.
 The source and separate serving evidence above cover the selected removal path. This documentation
 reconciliation itself implements no application code or live tests. Gate E remains optional, open,
-unperformed and subject to separate design/approval; the advisor IDOR and broader header-proof gap
-also remain OPEN.
+unperformed and subject to separate design/approval. The advisor IDOR is separately CLOSED by
+its own #329 merge/deploy/probe evidence; the broader header-proof gap and retained advisor-code
+cleanup remain OPEN.
 
 See [market flow](../../../e2e-flows/market-data-service-e2e.md),
 [risk register](../../../architecture/RiskMitigationPlan.md) and
