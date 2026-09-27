@@ -1,5 +1,9 @@
 # Asset Picker — E2E Master Plan to Production
 
+> **Owner approval required:** push/PR and merge of this documentation closure update each need
+> explicit approval after independent review. Completed advisor Gates A–D authorize no additional
+> live operation, deployment or retained-code cleanup. Until merged, this status copy is a candidate.
+
 **Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
 [E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are
 audited against source at `main@8aa4035b`. The architecture index distinguishes 6 current
@@ -11,8 +15,25 @@ only when the carrying PR merges into main. Runtime/demo acceptance remains gove
 [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) and is unchanged by this audit.
 The review follow-up records the source-confirmed
 [advisor cross-user authorization defect](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md).
-Its deployed Azure reachability is unverified; prior portfolio/session isolation evidence does
-not cover it. The architecture review also confirmed the subsequently fixed
+The old handler's Azure exploitability is unverified; prior portfolio/session isolation evidence does
+not cover it. Reviewed commits `435f61c6` and `35779e2e` remove the unused advisor route with no
+alias and are merged through [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329)
+at `6a82f3da` (2026-09-26 20:49:07 UTC). Codex verified the merge tree equals the reviewed head,
+the cited commits remain ancestors and PR checks passed. The original source review inspected
+saved test evidence, without rerunning Java tests or making live/Azure reads. The item is now
+CLOSED by removal/merge/deploy and one owner-run Gate D, not a waiver. Post-merge main
+CI passed; owner-authorized scoped deploy 36285996570, attempt 1, succeeded at `6a82f3da` on
+2026-09-27 UTC. Saved workflow logs bind insight revision `--0000082` / digest `aa1e9e3c…`, with
+other apps/the refresh Job unchanged within the compared fields. At approximately 02:05 UTC,
+the owner-run own-ID probe returned `REMOVED`, exit 0; summary smoke check passed (158 schema-valid
+entries). Saved bindings at 02:03:23/02:09:47 UTC agree on that deploy run/attempt/commit.
+Codex checked the hashed saved evidence, not a fresh Azure read or live request. Route-wide absence
+also rests on reviewed mapping removal/regression; no cross-user live exploit test was made.
+Out-of-band Azure changes are not excluded; retained advisor-code cleanup and the broader
+header-proof gap remain OPEN. The earlier
+flow/architecture documentation is filed through #328 (`598bdf17`); this later status follow-up
+is separate from code delivery and does not advance Spec A/B1/B2 acceptance.
+The architecture review also confirmed the subsequently fixed
 [public price-write defect](../todos/backlog/public-market-price-write-authorization/README.md)
 and records the [header-sanitization proof gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
 Price-write closure is separate from the earlier demo suite: reviewed removal `83607f5d` merged through
@@ -54,8 +75,10 @@ they are not fresh serving-state assertions. The backlog index records the indep
 the audit is filed through #324 (`6f1e5700`).
 The later flow/architecture review adds three OPEN security/coverage entries against `main@8aa4035b`,
 initially bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
-The later separately recorded price-write closure brings current totals to 9 fixed/completed,
-2 superseded and 22 OPEN across those same 33 directories.
+The later separately recorded price-write closure brought totals to 9 fixed/completed,
+2 superseded and 22 OPEN; advisor-route closure on 2026-09-27 UTC now brings current totals to
+10 fixed/completed, 2 superseded and 21 OPEN across those same 33 directories. Retained advisor-code
+cleanup stays separate OPEN work, not another directory in this count.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

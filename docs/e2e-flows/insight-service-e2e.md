@@ -5,6 +5,16 @@ a fresh Azure OpenAI call, cache read or endpoint test. The
 [demo dashboard](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) retains accepted evidence and
 unverified edges, including natural-language resolution and broader model-text reliability.
 
+**Merged/deployed security-remediation follow-up:** commits `435f61c6` and `35779e2e` remove the unused
+advisor endpoint through [#329](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/329)
+at `6a82f3da` (2026-09-26 20:49:07 UTC). The merge tree equals the reviewed head. Scoped deploy
+36285996570, attempt 1, succeeded at that commit on 2026-09-27 UTC; saved workflow artifacts bind
+insight revision `--0000082` / digest `aa1e9e3c…`. One owner-run Gate D returned `REMOVED`, exit 0,
+with summary smoke check passing and matching before/after deploy bindings. The route-removal item
+is CLOSED, based on saved workflow logs and Claude's terminal transcription, not a fresh Azure read
+or live request by this audit. The baseline path below is finding context,
+not a route present in current main.
+
 ## 1. Browser entry and distinct requests
 
 The AI Insights page combines `MarketSummaryGrid` and `ChatInterface`.
@@ -24,7 +34,7 @@ serve different pipelines:
 | `GET /api/insights/market-summary` | Redis-backed bulk price/trend map with catalog quote currency; **no per-ticker AI sentiment calls** |
 | `GET /api/insights/market-summary/{ticker}` | One stored ticker summary plus sentiment from the active adapter; no price yields 404; adapter unavailability leaves sentiment absent |
 | `POST /api/chat` | Stateless asset-resolution turn, then stored facts and optional sentiment |
-| `GET /api/insights/{userId}/analyze` | Separate advisor path fetching portfolio holdings; not the current chat's portfolio-context pipeline |
+| `GET /api/insights/{userId}/analyze` | Audited-baseline advisor path; removed through #329, with no alias; scoped-deployed and own-ID probe `REMOVED`; source/regression support route-wide absence |
 | `GET /api/insights/health` | Public service-UP handler, not a successful model or Redis acceptance test |
 
 The bulk cards' “Sentiment Unavailable” is expected when that endpoint supplies no sentiment;
@@ -120,7 +130,7 @@ profile. Rule-based source denotes the deterministic adapter.
 
 ## 5. Separate portfolio advisor path and limits
 
-[InsightService](../../insight-service/src/main/java/com/wealth/insight/InsightService.java) calls
+At the audited baseline, [InsightService](../../insight-service/src/main/java/com/wealth/insight/InsightService.java) calls
 `GET /api/portfolio` at its configured portfolio-service URL, setting `X-User-Id` from the
 `/{userId}/analyze` path argument, and delegates the first returned portfolio to `InsightAdvisor`.
 It does not feed that result into `POST /api/chat`.
@@ -130,15 +140,26 @@ login, including the restricted showcase login, but this path never compares its
 the gateway-authenticated subject. A caller knowing another user's ID can request that user's
 derived risk score, concentration warnings and rebalancing suggestions when dependencies work;
 the response/error path can also disclose portfolio existence. Random UUIDs are not authorization.
-It is tracked as [OPEN security work](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md),
-not closed or accepted as harmless by the earlier portfolio-isolation suite.
+The [finding](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is CLOSED by
+the later route-removal merge/deploy/probe evidence, not by the earlier portfolio-isolation suite
+or a decision to accept the flaw as harmless.
 
 Reachability is environment-dependent. The checked-in Azure insight-service environment does not
 set `PORTFOLIO_SERVICE_URL`; its application default is `http://localhost:8081`, so the fetch is
 expected to fail absent another override. This is **not live-verified** and not a security control.
 Compose and retained AWS configuration supply the portfolio URL. Correct authorization before
-making this advisor reachable or adding the missing Azure setting. No live exploit, code fix or
-configuration change was performed here.
+making this advisor reachable or adding the missing Azure setting. No live exploit or configuration
+change was performed by the documentation audit.
+
+The merged removal deletes the controller route and its `InsightService` injection, not
+the retained analysis code. No other production HTTP handler calls that service. The recording
+portfolio-stub regression is RED before removal and GREEN on `35779e2e`; four re-exposure mutants
+are reported caught. Codex inspected source and saved evidence, without rerunning Java tests.
+See the linked backlog for counts, proof limits and delivery gates. Publication, merge and scoped
+deployment and one owner-run live probe are complete. The item is CLOSED within route-removal scope.
+The probe named only its own ID; route-wide absence also relies on the reviewed mapping removal and
+regression. The saved bindings cannot exclude out-of-band Azure changes. Retained advisor-code
+cleanup and the broader header-proof gap remain OPEN; no chat/model reliability proof follows.
 
 Formal per-user Sharpe/Sortino metrics, richer FA/TA conversation and exploratory analysis are
 [deferred v5 requests](../../roadmap_enhancements_v5.md). Source availability of an advisor or a
@@ -162,8 +183,8 @@ flowchart TD
     A -.-> O[Azure OpenAI or retained Bedrock adapter]
     K[Kafka market-prices] --> E[Insight event listener]
     E --> R
-    G --> P[Separate portfolio advisor endpoint]
-    P --> H[Portfolio-service holdings then InsightAdvisor]
+    G -. historical only .-> P[Historical advisor endpoint - removed, deployed, own-ID probe REMOVED]
+    P -. historical only .-> H[Portfolio-service holdings then InsightAdvisor]
 ```
 
 ## 7. Deployment and evidence boundary

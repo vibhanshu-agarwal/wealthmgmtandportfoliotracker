@@ -27,10 +27,13 @@ from the PostgreSQL projection.
 The gateway validates the JWT and overwrites `X-User-Id`. Ordinary portfolio endpoints use that
 header, not a caller-selected portfolio/user ID. Downstream service access must remain behind
 the trusted gateway/network boundary; the header alone is not cryptographic authentication.
-**Exception:** insight-service's advisor takes a caller-selected path user ID and forwards it as
+**Historical exception:** before #329, insight-service's advisor took a caller-selected path user ID and forwarded it as
 this trusted header, without checking the gateway subject. That source-confirmed
 [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is not covered by
-the normal portfolio endpoint's subject-binding claim.
+the normal portfolio endpoint's subject-binding claim. It is now CLOSED by removing that route,
+scoped deployment and one bound owner-run own-ID probe, not by a change to portfolio-service's
+header trust or proof of every downstream authorization path. Retained advisor-code cleanup and
+the broader header-proof gap stay OPEN.
 Base JVM target is localhost:8081, Compose uses `portfolio-service:8081`, and Azure uses the
 internal ACA name at ingress port 80, forwarded to service port 8080.
 
@@ -193,7 +196,9 @@ flowchart LR
 Azure profiles are `prod,azure`; Flyway migrations run on startup and the service has internal
 ingress and scale-to-zero. Source defines Neon PostgreSQL and Aiven Kafka integration. The
 retained AWS Lambda configuration is restart context, not a newly verified standby deployment.
-The advisor **fetch** from insight-service selects the user from its public analyze-path argument,
-not a callback or the browser chat's portfolio-context pipeline. Its authorization flaw and the
-unverified Azure URL/reachability limitation are recorded in the
+The historical advisor **fetch** selected the user from its public analyze-path argument,
+not a callback or the browser chat's portfolio-context pipeline. That route is now removed,
+deployed and live-validated within its separate closure scope; the retained service is unused
+by production HTTP handlers and its cleanup remains OPEN. The original authorization flaw,
+unverified old Azure exploitability and closure limits are recorded in the
 [insight guide](insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits).

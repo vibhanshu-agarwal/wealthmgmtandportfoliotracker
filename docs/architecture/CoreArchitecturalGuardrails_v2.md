@@ -59,9 +59,11 @@ topics or replay production data.
 - Portfolio monotonic projection/history guards do not establish insight Redis atomicity,
   universal event-ID dedup or exactly-once delivery.
 - JWT subject injection is not proof of every downstream endpoint's ownership checks.
-  The path-ID advisor has an OPEN, source-confirmed
-  [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md); do not conflate it
-  with accepted chat. Missing Azure URL wiring is not authorization; live reachability is unverified.
+  The path-ID advisor's source-confirmed
+  [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is CLOSED by route
+  removal, scoped deployment and one bound owner-run probe, not by the earlier isolation suite or
+  accepted chat. Missing Azure URL wiring was not authorization; old exploitability is unverified.
+  Out-of-band Azure changes are not excluded; retained-code cleanup and broader header proof stay OPEN.
 - Preserve B2's exact demo write exceptions; do not claim `ro` blocks all saves.
   Manual reset has additional identity/guard checks, and presence is advisory, not a lock.
   The reset response exposes an opaque replica token, not the shared internal key.
