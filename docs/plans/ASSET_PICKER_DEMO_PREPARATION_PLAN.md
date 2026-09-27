@@ -29,7 +29,7 @@ published through #323 at `d515aa5b`; targeted #3–#6 status published through 
 
 **Operational status:** owner-authorized market-data deployment (Gate C) and one live probe
 (Gate D) are complete. Optional historical-data audit Gate E is **NOT PERFORMED — skipped by
-owner decision on 2026-09-27 UTC**. The owner reports site use only by himself and agents and
+owner decision on 2026-09-27 UTC**. The owner reports site use only by the owner and agents and
 considers the retrospective audit unnecessary. This is a scope/risk decision, not independently
 verified absence of other users or certification of historical prices. No audit, database read,
 repair or future live operation is authorized here. Price-write
@@ -55,6 +55,13 @@ assertion is already merged through #327. It is not a confirmed current bypass. 
 demo waiver closed either security finding; the advisor has its own closure evidence below.
 Current backlog totals remain 33 directories: 10 fixed, 2 superseded, 21 OPEN. Header proof and
 separate retained advisor-code cleanup are locally accepted, not merged/deployed, as recorded below.
+
+**Gate E decision source — owner message in the review conversation, recorded 2026-09-27 UTC:**
+
+> "There haven't been any users on the site except for agents and myself (also using the demo
+> username and password) so it seems this is not relevant. We should be able to skip it."
+
+The quotation records the owner's decision; the reported usage was not independently verified.
 
 **Owner-approved follow-ups — 2026-09-27 UTC:** header tests first, then retained advisor
 cleanup. Both candidates are accepted by Codex following Fable review and Claude's fixes and

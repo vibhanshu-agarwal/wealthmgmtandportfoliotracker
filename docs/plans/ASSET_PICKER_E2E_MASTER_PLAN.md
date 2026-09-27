@@ -19,8 +19,9 @@ settings and seed/cache retirement are distinct OPEN follow-ups. Advisor route-r
 is filed through #330 (`e03d6cc4`); these later candidates do not reopen it or advance Spec A/B1/B2.
 The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) owns details and next actions:
 finish PR CI and obtain merge approvals, assess any deployment separately, then file reviewed
-status and continue freeze preparation. On 2026-09-27 UTC the owner skipped Gate E because he
-reports site use only by himself and agents. It was not performed; historical-data integrity is
+status and continue freeze preparation. On 2026-09-27 UTC the owner skipped Gate E based on
+owner-reported use only by the owner and agents. The exact decision is quoted in the linked
+demo dashboard. It was not performed; historical-data integrity is
 not certified. No historical-data read or repair is approved by this update. Refresh delivery status before
 independent review/publication of this documentation candidate.
 

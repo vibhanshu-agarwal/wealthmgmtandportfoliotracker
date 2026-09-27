@@ -133,7 +133,8 @@ denial. Independently review the patch and obtain separate deployment/validation
 The source and separate serving evidence above cover the selected removal path. This documentation
 reconciliation itself implements no application code or live tests. Gate E is **NOT PERFORMED —
 skipped by owner decision on 2026-09-27 UTC**. The owner reports the site has been used only by
-himself and agents, including demo-account use, and considers the retrospective audit unnecessary.
+the owner and agents, including demo-account use, and considers the retrospective audit unnecessary.
+The exact dated owner message is quoted in the linked demo dashboard below.
 This is an accepted scope/risk disposition, not a database/user inventory or proof of clean
 historical prices, non-use of the old route, or absence of all anomalies. No audit or repair was
 performed; any future reactivation needs its own scope and authority. The advisor IDOR is separately CLOSED by

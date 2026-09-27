@@ -52,8 +52,10 @@ review and Claude's fixes. Header candidate `c647b6f0` has a verified fresh capt
 The candidates are published for review as #331/#332, not merged or deployed. The header item and separate cleanup therefore remain
 OPEN pending delivery; totals/dispositions do not change. Smoke replacements, leftover settings
 and seed/cache retirement remain distinct open follow-ups in the advisor item. Gate E is skipped
-by owner decision based on owner-reported use only by himself and agents; no audit was performed
-or historical-data integrity established. Documentation publication and code/doc merges require approval.
+by owner decision based on owner-reported use only by the owner and agents; the exact dated
+decision is quoted in the [demo dashboard](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
+No audit was performed or historical-data integrity established. Documentation publication
+and code/doc merges require approval.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
