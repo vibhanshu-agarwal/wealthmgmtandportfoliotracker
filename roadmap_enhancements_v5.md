@@ -23,9 +23,11 @@ planning: per-user Sharpe/Sortino is **High** priority; every other open roadmap
 
 Closed capabilities remain visible so they are not implemented again. Priority applies only to
 remaining work. These are lightweight planning judgments, not measured scores or delivery
-estimates. Existing v4 ratings are retained; missing ratings are filled with Codex's proposed
-classifications (2026-09-27 UTC), pending Claude's agreement or adjustments. No deep assessment
-is needed for this classification pass. Reassess the assumptions when restarting.
+estimates. Existing v4 ratings are retained. Claude's quick review agreed with the remaining
+ratings and proposed changes to rows 6, 11 and 12. Codex accepts Low usability for row 11,
+Low importance for row 12, and conditional Medium ease for row 6. The owner's 2026-09-27 UTC
+clarification makes charts/graphs part of row 6 itself, so Codex retains High usability;
+Claude's confirmation of that clarified row remains pending. Reassess assumptions at restart.
 
 - **Importance:** impact on analytical usefulness, reliability or the project's goals.
 - **Usability:** direct benefit to an end user, not how easy the feature is to implement.
@@ -40,13 +42,13 @@ is needed for this classification pass. Reassess the assumptions when restarting
 | 3 | Observability & Application Insights | v4 Item A | Medium | Low | Medium | — | **CLOSED** — accepted historical delivery scope |
 | 4 | **Asset Picker (curated universe)** | v4 Item B / Spec A–B1–B2 | High | High | Low | — | **CLOSED** — delivered, deployed and accepted; provider/corporate-action residuals are separate |
 | 5 | Portfolio Analytics / Demo-critical UI | Later delivery / #320 | High | High | Medium | — | **CLOSED within recorded scope** — not a clean PASS or risk-ratio delivery |
-| 6 | **Per-user Sharpe Ratio and Sortino Ratio** | New R1 | High | High | Low | **High** | **OPEN / DEFERRED — NOT STARTED** |
+| 6 | **Per-user Sharpe Ratio and Sortino Ratio with explanatory charts/graphs** | New R1 | High | High | Medium | **High** | **OPEN / DEFERRED — NOT STARTED** |
 | 7 | More Intelligent FA/TA Chatbot | New R2 | High | High | Low | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
 | 8 | More Engaging Charts and Analysis | New R3 | Medium | High | Medium | **Medium** | **OPEN / DEFERRED — NOT STARTED** |
 | 9 | Custom Asset & Portfolio Management | v4 Item C / retained goal | Medium | High | Low | **Medium** | **OPEN / UNSCHEDULED** |
 | 10 | User Settings / Personalization | v4 / retained goal | Medium | Medium | Medium | **Medium** | **OPEN / UNSCHEDULED** |
-| 11 | Multi-provider Market Data | Retained goal | High | Medium | Low | **Medium** | **OPEN / UNSCHEDULED** |
-| 12 | AI Service Contract Evolution | Retained goal | Medium | Low | Medium | **Medium** | **OPEN / UNSCHEDULED** |
+| 11 | Multi-provider Market Data | Retained goal | High | Low | Low | **Medium** | **OPEN / UNSCHEDULED** |
+| 12 | AI Service Contract Evolution | Retained goal | Low | Low | Medium | **Medium** | **OPEN / UNSCHEDULED** |
 | 13 | Advanced Agent Workflows | Retained goal | Medium | High | Low | **Medium** | **OPEN / EXPLORATORY** |
 | 14 | Database Least Privilege | Retained goal | High | Low | Medium | **Medium** | **OPEN — future hardening** |
 | 15 | AWS Reactivation | Retained goal | Low | Low | Low | **Medium** | **PARKED** — not a current defect or ready rollback |
@@ -55,17 +57,17 @@ is needed for this classification pass. Reassess the assumptions when restarting
 
 These notes explain the rough ratings without committing a design, budget or schedule. Rows
 1–4 and 9–10 retain v4's ratings; row 5's ratings describe the delivered scope, not future
-risk-ratio work. The new classifications are a proposal until Claude responds; agreement should
-be recorded here, not inferred from publication or a previous review of the matrix layout.
+risk-ratio work. The quick review and the outstanding row 6 clarification are recorded above;
+publication does not imply agreement on that clarification or authorize implementation.
 
 | Row | Why this classification / assumption to revisit |
 |---|---|
 | 5 | Existing analytics and UI have strong user value; moderate delivery complexity within the already accepted scope. No additional implementation is implied. |
-| 6 | Strong analytical value; harder because trustworthy historical returns, changing holdings/cash flows, FX and ratio conventions matter more than the formulas alone. |
+| 6 | High user value assumes ratios accompanied by explanatory charts/graphs and plain-language interpretation, not standalone numbers. Medium ease assumes a bounded first version using current holdings, validated daily history and a stated risk-free/target return, including those visuals. A retrospective current-holdings scenario must be labeled as such, not presented as the user's actual historical return. Accurate returns accounting for deposits/withdrawals and holdings changes would be Low ease. These assumptions need confirmation at design time, not silent reduction of scope. |
 | 7 | Strong user-facing improvement; harder because FA needs fundamentals and TA needs suitable history, with grounded explanations, provenance and fallback behavior. |
 | 8 | Visible engagement benefit; moderate ease for a small set of views using existing data. History-heavy or benchmark-dependent views would be harder. |
 | 11 | Important for coverage/reliability, with mostly indirect user benefit; harder due to provider licensing, symbol/currency normalization, reconciliation and failover. |
-| 12 | Mainly an architectural improvement with little immediate UI benefit; moderate ease for one bounded contract change. Do not assume an agent-platform migration is equally easy. |
+| 12 | Low importance until a richer-analysis requirement justifies it; little immediate UI benefit and moderate ease for one bounded contract change. Do not assume an agent-platform migration is equally easy. |
 | 13 | Potentially strong user value but exploratory importance; harder due to multi-step orchestration, trustworthy inputs and financial/operational guardrails. Assumes simulations, not live trade execution. |
 | 14 | Important security hygiene with little visible UI value; moderate ease assuming scoped application roles and permission tests, not a wholesale identity redesign. |
 | 15 | Low current benefit while Azure is the demo path; harder because the parked AWS environment needs identity, infrastructure, model-access and cost revalidation. |
@@ -101,7 +103,11 @@ data sources, dependencies and product goals when the owner resumes the project.
 ### R1 — Per-user Sharpe Ratio and Sortino Ratio
 
 Improve portfolio analytics with risk-adjusted performance measures for each user's portfolio:
-Sharpe for total-volatility risk and Sortino for downside risk. First revisit return-history
+Sharpe for total-volatility risk and Sortino for downside risk. **Charts/graphs and plain-language
+interpretation are required parts of this feature, not optional work deferred to R3.** Standalone
+ratio numbers do not satisfy the owner's request. The visuals must help users understand the
+returns and total-volatility/downside-risk context behind the ratios; exact chart choices remain
+for later design. First revisit return-history
 quality, lookback/annualization, risk-free or target return, FX and cash-flow/holdings-history
 conventions. Current valuation charts are not automatically a valid portfolio-return series;
 insufficient history should be disclosed rather than turned into misleading ratios.
@@ -117,7 +123,9 @@ output. No particular indicator set, provider, advisory capability or model is p
 ### R3 — More Engaging Charts and Analysis
 
 Explore a small, useful set of complementary views—for example drawdown, benchmark comparison,
-risk/return, allocation/concentration and interactive time ranges. Choose based on user value
+risk/return, allocation/concentration and interactive time ranges. This is additional exploration
+beyond the explanatory charts/graphs already required by R1; it does not move those visuals out
+of the High-priority ratio feature. Choose based on user value
 and available data rather than adding charts for their own sake. Historical positions, cash
 flows and benchmark alignment may be prerequisites; examples are not committed deliverables.
 

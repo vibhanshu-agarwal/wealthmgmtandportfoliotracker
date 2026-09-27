@@ -129,7 +129,9 @@ date, detailed design or implementation authorization. Use the restored
 [v5 prioritization matrix](roadmap_enhancements_v5.md#prioritization-matrix--resume-here) when resuming.
 
 - **R1 — Portfolio Sharpe Ratio and Sortino Ratio:** add risk-adjusted performance analysis for
-  each user's portfolio, distinguishing total volatility from downside risk. At restart, first
+  each user's portfolio, distinguishing total volatility from downside risk. **Include explanatory
+  charts/graphs and plain-language interpretation as part of R1 itself; standalone ratio numbers
+  are insufficient.** Exact chart choices remain for later design. At restart, first
   assess usable return history and agree lookback, annualization, risk-free/target return, FX and
   cash-flow/holdings-history conventions; incomplete data must not produce misleading ratios.
 - **R2 — More intelligent FA/TA chatbot:** move beyond a ticker snapshot to selectable
@@ -139,7 +141,8 @@ date, detailed design or implementation authorization. Use the restored
 - **R3 — More engaging charts and analysis:** explore complementary views such as drawdown,
   benchmark comparison, risk/return and allocation/concentration analysis, with interactive
   exploration. Choose a small useful set after reviewing data availability and user value; these
-  are examples to explore, not promised charts.
+  are examples to explore, not promised charts. R3 is additional exploration, not a prerequisite
+  for the explanatory charts/graphs required within High-priority R1.
 
 ## 🎯 Future Architectural Goals
 
