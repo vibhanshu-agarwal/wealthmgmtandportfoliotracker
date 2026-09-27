@@ -23,8 +23,9 @@ review/file this refreshed documentation, assess any deployment separately, then
 preparation. On 2026-09-27 UTC the owner skipped Gate E based on
 owner-reported use only by the owner and agents. The exact decision is quoted in the linked
 demo dashboard. It was not performed; historical-data integrity is
-not certified. No historical-data read or repair is approved by this update. This merged-source
-reconciliation needs independent review and publication approval; source delivery is not deployment.
+not certified. No historical-data read or repair is approved by this update. Claude accepted this
+source/status reconciliation through `d2cb4113`; the dashboard records final successful main CI.
+Publication approval remains required; source delivery is not deployment.
 
 **Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
 [E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are

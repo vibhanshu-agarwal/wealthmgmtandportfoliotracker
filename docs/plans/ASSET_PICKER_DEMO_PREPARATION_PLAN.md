@@ -2,7 +2,8 @@
 
 > **Owner approval required for documentation publication/merge:** header tests (#331) and
 > retained-advisor source cleanup (#332) are merged. This later documentation draft
-> still needs independent review and explicit push/PR and merge approval. No deployment is approved
+> is independently reviewed through `d2cb4113`; its final CI refresh is recorded below. Explicit
+> push/PR and merge approval are still required. No deployment is approved
 > by this document.
 > Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
 > operations and deployment remain separately gated. Gate E is skipped by owner decision, not
@@ -91,11 +92,14 @@ merged at `d439d3a2` (05:57:00 UTC), pinned to `c647b6f0`; its tree equals the r
 that head. Codex verified these GitHub identities and local tree comparisons. Claude reports
 all eight required checks passed before each approved merge. No cleanup deploy is recorded:
 the newest GitHub Deploy run remains 36285996570 at `6a82f3da`. No fresh Azure read was made.
-The latest read-only reconciliation snapshot has post-merge Gitleaks, Frontend CI and Qodana
-passed; CI Verification run 36298684356 is still running. No completed overall main-CI verdict
-is claimed; refresh this snapshot before publication rather than treating it as current forever.
+**Final post-merge main CI:** all four workflows succeeded at `bd1c325f`: CI Verification
+36298684356, Gitleaks 36298684357, Frontend CI 36298684365 and Qodana 36298684380.
+Codex verified the completed/success conclusions and unchanged remote main read-only. The newest
+Deploy run remains 36285996570 at `6a82f3da`; no cleanup deployment is recorded by GitHub.
+Claude's source/status review accepted the draft through `d2cb4113`; this subsequent final-CI
+recording completes its outstanding factual refresh, not a new application test or cloud read.
 
-**Next:** independently review this refreshed docs draft, then obtain push/PR and merge approval.
+**Next:** obtain push/PR approval for this reviewed, CI-refreshed docs draft; merge approval is separate.
 Any cleanup deployment is separately scoped/authorized. Gate E is not required under the owner's
 decision; this update authorizes no database read or repair.
 
@@ -317,7 +321,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`). Earlier local draft accepted through `3e15e80e`; this post-merge refresh needs review and filing. The operator script remains a private reviewed draft | Independently review this refresh, then seek push/PR and merge approval. Continue the maintenance handoff; factual reconciliation does not wait for media brainstorming |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`). Post-merge source/status draft accepted through `d2cb4113`; final main CI is green and recorded. This later docs bundle remains unfiled. The operator script remains a private reviewed draft | Seek push/PR approval, validate the actual PR body/checks, then obtain separate merge approval. Continue the maintenance handoff; factual reconciliation does not wait for media brainstorming |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
