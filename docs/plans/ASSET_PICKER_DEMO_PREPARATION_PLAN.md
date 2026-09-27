@@ -321,7 +321,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`). Post-merge source/status draft accepted through `d2cb4113`; final main CI is green and recorded. This later docs bundle remains unfiled. The operator script remains a private reviewed draft | Seek push/PR approval, validate the actual PR body/checks, then obtain separate merge approval. Continue the maintenance handoff; factual reconciliation does not wait for media brainstorming |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`), and header/advisor-cleanup status through #333 (`6e968c20`). The matrix/consensus and Git-only handoff correction is local, not yet filed. The operator script remains a private reviewed draft and a required Git-filing gap | Obtain approval to publish the local correction. File required operator/warm-up scripts and restart documentation through reviewed PRs; a private-path inventory alone does not complete the handoff |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -881,6 +881,23 @@ portfolio-demo gate.
 **Required before project freeze (owner direction, 2026-09-25).** These documents already exist; the
 work is to reconcile and audit them against the delivered state. It is factual cleanup and need not
 wait for the brainstorming session, which applies only to the media package (Phase 6).
+
+**Git-only restart requirement — owner direction, 2026-09-27 UTC:** all documents and artifacts
+needed after the pause must be tracked in Git and merged into `main` through reviewed,
+owner-authorized PRs. Do not rely on loose worktree files, unpublished branches, chat history or
+agent memory. Anything not merged is expendable, not an assumed future dependency. Secrets and
+raw sensitive evidence must not be committed; preserve the needed sanitized record, provenance
+and evidence limitations. Historical local paths/hashes do not guarantee the underlying files
+will be retained. Filing and cleanup require their own approvals; this is not deletion authority.
+
+- [ ] Inventory and file the required operator/warm-up scripts, relevant tests, safe configuration
+  templates, decisions and maintenance/restart instructions; the currently private kit is an
+  unresolved filing gap, not a durable handoff.
+- [ ] File necessary sanitized evidence/verdict summaries in Git. Flag any historical raw evidence
+  not retained so a future reader cannot mistake recorded acceptance for reproducible proof.
+- [ ] Verify the restart documentation and required artifacts resolve from a clean clone of
+  merged `main`, without depending on old worktrees or private file paths. This check requires
+  no live/cloud access and grants no such authority.
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
   and [enhancements v5](../../roadmap_enhancements_v5.md) against `main@5d559478`; preserve v1–v4

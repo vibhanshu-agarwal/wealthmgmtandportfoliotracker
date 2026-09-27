@@ -158,6 +158,15 @@ verification-tool gaps—stay in their existing backlog entries; do not recreate
 
 ## 4. Freeze Work Versus Later Features
 
+**Required Git-only handoff — owner direction, 2026-09-27 UTC:** the later restart must work from
+merged Git content, not loose files in isolated worktrees, unpublished branches, chat history or
+agent memory. File every required document, decision, operator/warm-up script, safe configuration
+template and restart instruction through a reviewed, owner-authorized PR before freeze. A local
+commit alone is not filed. Anything not merged is expendable and must not be a restart dependency.
+Secrets and raw sensitive evidence stay out of Git; retain needed sanitized evidence summaries
+and their limits. A historical hash or local path is not a promise that the original file survives.
+This is a retention/filing requirement, not approval to delete, push or merge.
+
 - **Filed:** technical demo evidence/status through #323, backlog reconciliation through #324
   (`6f1e5700`), and runbook reconciliation through #325 (`5d559478`). Evidence remains scoped;
   documentation merges did not rerun or deploy the app.
@@ -172,7 +181,9 @@ verification-tool gaps—stay in their existing backlog entries; do not recreate
 ## 5. Restart Checklist
 
 1. Read the dashboard, this v5, the backlog and [current operations](docs/runbooks/CURRENT_OPERATIONS.md).
-   Confirm what is delivered, accepted debt, inconclusive or genuinely open before choosing work.
+   Use their merged Git copies; do not assume old worktrees or private kits exist. Confirm what
+   is delivered, accepted debt, inconclusive or genuinely open before choosing work. Missing
+   required artifacts are handoff gaps, not instructions to replay a remembered process.
 2. Under approved scope, re-establish the actual serving/configuration baseline, dependency/model
    availability, costs and data-history suitability. A dated roadmap is not a current cloud read.
 3. Select a small feature slice with the owner, write/review its design and acceptance criteria,

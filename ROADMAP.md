@@ -167,6 +167,14 @@ feature may still have open follow-ups; accepted demo debt is not "fixed" or "no
 
 ## Restart and Freeze Handoff
 
+**Git-only restart rule — owner direction, 2026-09-27 UTC:** anything needed to resume must be
+tracked in Git and merged into `main` through a reviewed, owner-authorized PR. Loose worktree
+documents, unpublished branches, chat history and agent memory are not durable restart inputs.
+Required plans, decisions, operator scripts, safe configuration templates and restart instructions
+must be filed before freeze; otherwise treat them as expendable, not assumed available later.
+Keep secrets and raw sensitive evidence out of Git; preserve necessary sanitized summaries,
+provenance and limitations instead. This rule does not authorize deletion or publication.
+
 Before picking up feature development, read the dashboard, v5 and the backlog index; verify the
 actual deployed/configuration baseline under approved scope and revalidate dependencies/data
 contracts. Do not replay historical repair packets or reuse cleaned-up certification accounts.
