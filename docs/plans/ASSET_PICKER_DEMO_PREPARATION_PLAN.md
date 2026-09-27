@@ -1,15 +1,14 @@
 # Asset Picker Demo Preparation Implementation Plan
 
-> **Owner approval required for documentation publication/merge:** header tests (#331) and
-> retained-advisor source cleanup (#332) are merged. This later documentation draft
-> is independently reviewed through `d2cb4113`; its final CI refresh is recorded below. Explicit
-> push/PR and merge approval are still required. No deployment is approved
-> by this document.
+> **Publication scope:** header tests (#331) and retained-advisor source cleanup (#332) are
+> merged; their documentation is filed through #333 (`6e968c20`). On 2026-09-27 UTC the owner
+> authorized a PR for this roadmap-matrix/consensus and Git-only handoff correction, and its
+> merge if CI is green. That authorization covers this documentation bundle only, not feature
+> implementation, deployment, artifact cleanup or later operator-kit publication.
 > Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
 > operations and deployment remain separately gated. Gate E is skipped by owner decision, not
-> performed. This documentation copy is a candidate;
-> filing requires independent review and owner-authorized merge into `main`. This document grants
-> no further authority.
+> performed. Unmerged branch copies remain candidates; a correction counts as filed only when
+> its owner-authorized carrying PR merges into `main`. This document grants no further authority.
 
 > **For agentic workers:** Execute this plan phase-by-phase. Claude owns implementation, Fable 5.1
 > reviews implementation before Codex architecture/status reconciliation and final acceptance. Do
@@ -203,8 +202,10 @@ The [roadmap](../../ROADMAP.md), [root README](../../README.md) and
 [enhancements v5](../../roadmap_enhancements_v5.md) are filed through #326 (`8aa4035b`),
 with the owner's three requests still deferred. There is no feature implementation approval.
 The [backlog audit](../todos/backlog/README.md) is filed through #324 (`6f1e5700`), and the
-[runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Those approvals do not
-authorize this later bundle. If publication approval is withheld, this bundle stays local.
+[runbook reconciliation](../runbooks/README.md) through #325 (`5d559478`). Header/advisor-cleanup
+documentation is filed through #333 (`6e968c20`). The owner's 2026-09-27 UTC authorization covers
+the current matrix/consensus and Git-only handoff correction's PR and conditional green-CI merge;
+the correction is filed only when its carrying PR merges into `main`.
 #323 (`d515aa5b`, 2026-09-25) filed the accepted suite and cleanup status. The post-#320 suite and
 three-user cleanup are complete under approvals R and C; the verdict remains
 `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
@@ -321,7 +322,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`), and header/advisor-cleanup status through #333 (`6e968c20`). The matrix/consensus and Git-only handoff correction is local, not yet filed. The operator script remains a private reviewed draft and a required Git-filing gap | Obtain approval to publish the local correction. File required operator/warm-up scripts and restart documentation through reviewed PRs; a private-path inventory alone does not complete the handoff |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`), and header/advisor-cleanup status through #333 (`6e968c20`). The matrix/consensus and Git-only handoff correction follows the carrying-PR filing rule below. The operator script remains a private reviewed draft and a required Git-filing gap | File required operator/warm-up scripts and restart documentation through reviewed PRs; a private-path inventory alone does not complete the handoff |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -929,8 +930,9 @@ Sharpe/Sortino, not solely within the separate R2/R3 goals. Detailed design wait
 the freeze. Claude confirmed the clarified matrix against `28b7f16d`: Codex/Claude classification
 consensus is complete, including High/High/Medium for R1 with High priority. Medium ease assumes
 general, explanatory guidance; specific buy/sell or rebalancing recommendations need a harder
-design and safeguards, assessed later. This local correction still needs separate publication
-approval; feature implementation stays deferred.
+design and safeguards, assessed later. The owner authorized this correction's PR and merge if CI
+is green on 2026-09-27 UTC. It counts as filed only when the carrying PR merges into `main`;
+unmerged copies are candidates. Feature implementation stays deferred.
 It changes no accepted demo verdict or engineering-backlog disposition.
 None of these documentation filings completes the
 wider documentation pass, media package, maintenance handoff or private cleanup; the three

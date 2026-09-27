@@ -170,8 +170,9 @@ This is a retention/filing requirement, not approval to delete, push or merge.
 - **Filed:** technical demo evidence/status through #323, backlog reconciliation through #324
   (`6f1e5700`), and runbook reconciliation through #325 (`5d559478`). Evidence remains scoped;
   documentation merges did not rerun or deploy the app.
-- **Root-document reconciliation:** README, roadmap and v5. It counts as filed only when
-  its independently reviewed, owner-authorized carrying PR merges into `main`.
+- **Root-document reconciliation:** README, roadmap and v5 were filed through #326
+  (`8aa4035b`). This matrix/consensus and Git-only handoff follow-up counts as filed only when
+  its owner-authorized carrying PR merges into `main`; unmerged copies remain candidates.
 - **Still separate:** wider README/architecture/release-document consistency review; the
   owner/Claude/Codex brainstorm before drafting LinkedIn, resume, PPT and video material;
   maintenance/cost/identity ownership; private evidence/worktree inventory and approved cleanup.
