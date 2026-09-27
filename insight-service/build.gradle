@@ -22,7 +22,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation platform("org.springframework.ai:spring-ai-bom:${rootProject.ext.springAiVersion}")
-    // Bedrock Converse API is the sole AI provider for insight-service.
+    // Bedrock Converse is the AI provider under the `bedrock` profile (Azure OpenAI is below).
     // - Production (Lambda, profile `bedrock`) uses the Lambda execution role's IAM
     //   credentials automatically via the AWS SDK default credential chain — no API key.
     // - Local dev (profile `local`, the default) selects MockAiInsightService via

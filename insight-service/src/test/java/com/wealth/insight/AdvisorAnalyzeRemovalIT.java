@@ -14,14 +14,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.ResolvableType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -53,8 +59,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * name contains "user", and any insight-service bean holding an outbound HTTP client, which is
  * what forwarding a caller-chosen user to portfolio-service needs. The client check is deliberately
  * broad: a future legitimate client must be added to it knowingly, with its own authorization
- * argument. It inspects declared fields, so a client built inside a method would evade it; the
- * guard targets accidental re-exposure, not a deliberate workaround.
+ * argument. It inspects the declared fields of every instantiated singleton, unwrapping proxies and
+ * generic wrappers. It cannot see a client built inside a method, a non-Spring HTTP library, a
+ * prototype-scoped bean, or a bean that exists only under another profile (it runs under
+ * {@code default}); the guard targets accidental re-exposure, not a deliberate workaround. A
+ * test-registered control bean proves the walk finds a holder.
  */
 @Tag("integration")
 @Testcontainers
@@ -69,6 +78,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         }
 )
 @ActiveProfiles("default")
+@Import(AdvisorAnalyzeRemovalIT.WalkControl.class)
 class AdvisorAnalyzeRemovalIT {
 
     private static final String SHOWCASE_USER = "00000000-0000-0000-0000-0000000d3110";
@@ -93,6 +103,8 @@ class AdvisorAnalyzeRemovalIT {
      * not declare WebFlux; it counts whenever something puts it on the classpath.
      */
     private static final List<Class<?>> HTTP_CLIENT_TYPES = httpClientTypes();
+
+    private static final String CONTROL_BEAN = "advisorRemovalControlClientHolder";
 
     private static final int REDIS_PORT = 6379;
 
@@ -164,30 +176,28 @@ class AdvisorAnalyzeRemovalIT {
 
     @Test
     void noInsightServiceBeanHoldsAnOutboundHttpClient() {
-        // Control: the detector must see a client field, or an empty result below proves nothing.
-        assertThat(httpClientFields(ControlClientHolder.class))
-                .as("the detector must recognise a RestClient field")
-                .hasSize(1);
-
+        // Walks the singleton instances, not bean definitions, so a JDK or CGLIB proxy is unwrapped
+        // to its target class rather than skipped for not being a com.wealth type.
         Map<String, List<String>> holders = new LinkedHashMap<>();
         int inspected = 0;
-        for (String name : context.getBeanDefinitionNames()) {
-            Class<?> type = context.getType(name);
-            if (type == null) {
-                continue;
-            }
-            Class<?> userType = ClassUtils.getUserClass(type);
-            if (!userType.getName().startsWith("com.wealth.")) {
+        for (var bean : context.getBeansOfType(Object.class, false, true).entrySet()) {
+            Class<?> target = AopProxyUtils.ultimateTargetClass(bean.getValue());
+            if (!target.getName().startsWith("com.wealth.")) {
                 continue;
             }
             inspected++;
-            List<String> clients = httpClientFields(userType);
+            List<String> clients = httpClientFields(target);
             if (!clients.isEmpty()) {
-                holders.put(name + " (" + userType.getName() + ")", clients);
+                holders.put(bean.getKey(), clients);
             }
         }
 
-        assertThat(inspected).as("insight-service beans inspected").isPositive();
+        // Control: the test-registered holder must be found by the same walk, or an empty result
+        // below proves nothing. It is the only holder allowed.
+        assertThat(holders.remove(CONTROL_BEAN))
+                .as("the walk must find the control bean's RestClient and Supplier<RestClient> fields")
+                .hasSize(2);
+        assertThat(inspected).as("insight-service beans inspected besides the control").isGreaterThan(1);
         assertThat(holders)
                 .as("insight-service beans holding an outbound HTTP client; one could forward a "
                         + "caller-chosen X-User-Id to portfolio-service")
@@ -198,14 +208,35 @@ class AdvisorAnalyzeRemovalIT {
         List<String> found = new ArrayList<>();
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field field : c.getDeclaredFields()) {
-                for (Class<?> clientType : HTTP_CLIENT_TYPES) {
-                    if (clientType.isAssignableFrom(field.getType())) {
-                        found.add(c.getSimpleName() + "." + field.getName() + ": " + field.getType().getName());
-                    }
+                if (holdsHttpClient(ResolvableType.forField(field), 0)) {
+                    found.add(c.getSimpleName() + "." + field.getName() + ": " + field.getGenericType().getTypeName());
                 }
             }
         }
         return found;
+    }
+
+    /**
+     * True for a client type, or for any type whose generics or array component carry one, such as
+     * {@code ObjectProvider<RestClient>}, {@code Supplier<RestClient>} or {@code Map<String, RestClient>}.
+     */
+    private static boolean holdsHttpClient(ResolvableType type, int depth) {
+        Class<?> raw = type.resolve();
+        if (raw != null && HTTP_CLIENT_TYPES.stream().anyMatch(client -> client.isAssignableFrom(raw))) {
+            return true;
+        }
+        if (depth >= 4) {
+            return false;
+        }
+        if (type.isArray() && holdsHttpClient(type.getComponentType(), depth + 1)) {
+            return true;
+        }
+        for (ResolvableType generic : type.getGenerics()) {
+            if (holdsHttpClient(generic, depth + 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static List<Class<?>> httpClientTypes() {
@@ -222,10 +253,20 @@ class AdvisorAnalyzeRemovalIT {
         return List.copyOf(types);
     }
 
-    /** Shape of the deleted service: a bean holding a portfolio-service client. */
+    /** Shape of the deleted service: a bean holding a portfolio-service client, directly and wrapped. */
     @SuppressWarnings("unused")
-    private static final class ControlClientHolder {
+    static final class ControlClientHolder {
         private RestClient portfolioClient;
+        private Supplier<RestClient> lazyPortfolioClient;
+    }
+
+    /** Registers the control holder as a real bean, so the walk itself is exercised, not just the matcher. */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class WalkControl {
+        @Bean(CONTROL_BEAN)
+        ControlClientHolder advisorRemovalControlClientHolder() {
+            return new ControlClientHolder();
+        }
     }
 
     private int send(String method, String path, Map<String, String> headers) throws Exception {

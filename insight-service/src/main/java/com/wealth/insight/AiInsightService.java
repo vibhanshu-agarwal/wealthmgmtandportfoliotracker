@@ -7,7 +7,8 @@ import com.wealth.insight.advisor.AdvisorUnavailableException;
  *
  * <p>Returns a 2-sentence plain-text sentiment summary for a given ticker.
  * Profile-scoped adapters provide the concrete implementation:
- * mock (default / local / CI) or Bedrock ({@code bedrock} profile — AWS cloud).
+ * mock (default / local / CI), Bedrock ({@code bedrock} profile — AWS cloud) or Azure OpenAI
+ * ({@code azure-ai} profile).
  */
 public interface AiInsightService {
 
