@@ -23,9 +23,10 @@ import java.util.Map;
  *   <li>{@code sentiment} — Bedrock sentiment responses per ticker, TTL 60 minutes.
  *       Market sentiment doesn't change minute-to-minute; caching avoids redundant
  *       Bedrock API calls (~$0.0001 per call) for repeated ticker lookups.</li>
- *   <li>{@code portfolio-analysis} — Bedrock portfolio analysis per portfolio ID, TTL 30 minutes.
- *       Portfolio composition changes infrequently; caching avoids re-running the full
- *       LLM analysis on every dashboard refresh.</li>
+ *   <li>{@code portfolio-analysis} — nothing writes it any more: the portfolio advisor that
+ *       cached into it was removed. It stays registered only because the Golden-State seeder's
+ *       {@code POST /api/internal/insight/seed} still evicts keys from it, and that endpoint is
+ *       still called by the E2E global setup through the gateway.</li>
  * </ul>
  *
  * <p>Redis unavailability is non-fatal: the {@link CacheErrorHandler} logs at WARN level
@@ -41,7 +42,7 @@ public class CacheConfig implements CachingConfigurer {
     /** Sentiment cache: 60-minute TTL per ticker symbol (e.g. "AAPL"). */
     public static final String SENTIMENT_CACHE = "sentiment";
 
-    /** Portfolio analysis cache: 30-minute TTL per portfolio ID. */
+    /** Former portfolio analysis cache; kept for the seeder's eviction contract (see above). */
     public static final String PORTFOLIO_ANALYSIS_CACHE = "portfolio-analysis";
 
     @Bean

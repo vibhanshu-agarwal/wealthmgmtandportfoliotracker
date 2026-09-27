@@ -11,7 +11,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -28,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration tests for Wave 3 Task 8 — {@link MarketDataService} honest trend.
  *
- * <p>Uses a real Redis container (Testcontainers). Kafka is excluded; InsightService is mocked.
+ * <p>Uses a real Redis container (Testcontainers). Kafka is excluded.
  *
  * <p>Asserts:
  * <ul>
@@ -79,10 +78,6 @@ class Wave3HonestTrendIT {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
-
-    // Mock InsightService since it calls portfolio-service via REST
-    @MockitoBean
-    private InsightService insightService;
 
     @BeforeEach
     void cleanRedis() {

@@ -1,7 +1,6 @@
 package com.wealth.insight;
 
 import com.wealth.insight.advisor.AdvisorUnavailableException;
-import com.wealth.insight.advisor.AnalysisResult;
 import com.wealth.catalog.SupportedCatalog;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.dto.TickerSummary;

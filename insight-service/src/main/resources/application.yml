@@ -111,10 +111,6 @@ app:
     # unless explicitly exported, in which case the InternalApiKeyFilter fails closed with 503.
     api-key: ${INTERNAL_API_KEY:}
 
-insight:
-  portfolio-service:
-    base-url: ${PORTFOLIO_SERVICE_URL:http://localhost:8081}
-
 logging:
   level:
     org.springframework.kafka: INFO

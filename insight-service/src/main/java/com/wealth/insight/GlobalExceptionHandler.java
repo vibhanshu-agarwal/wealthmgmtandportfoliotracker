@@ -12,13 +12,6 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(PortfolioNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handlePortfolioNotFound(
-            PortfolioNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("error", ex.getMessage()));
-    }
-
     @ExceptionHandler(AdvisorUnavailableException.class)
     public ResponseEntity<Map<String, Object>> handleAdvisorUnavailable(
             AdvisorUnavailableException ex) {
