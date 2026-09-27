@@ -23,12 +23,12 @@ planning: per-user Sharpe/Sortino is **High** priority; every other open roadmap
 
 Closed capabilities remain visible so they are not implemented again. Priority applies only to
 remaining work. These are lightweight planning judgments, not measured scores or delivery
-estimates. Existing v4 ratings are retained. Claude's quick review agreed with the remaining
-ratings and proposed changes to rows 6, 11 and 12. Codex accepts Low usability for row 11,
-Low importance for row 12, and conditional Medium ease for row 6. The owner's 2026-09-27 UTC
-clarifications include charts/graphs and AI-assisted improvement guidance in row 6 itself,
-so Codex retains High usability;
-Claude's confirmation of that clarified row remains pending. Reassess assumptions at restart.
+estimates. Existing v4 ratings are retained. **Classification consensus — 2026-09-27 UTC:**
+Claude confirmed the revised matrix against local commit `28b7f16d`; Codex and Claude agree
+on the ratings below. R1 is High importance / High usability / Medium ease, with High priority,
+including charts/graphs, explanations and AI-assisted improvement guidance. The agreed changes
+also make row 11 usability Low and row 12 importance Low. This was a quick classification pass,
+not a detailed design or live assessment. Reassess assumptions at restart.
 
 - **Importance:** impact on analytical usefulness, reliability or the project's goals.
 - **Usability:** direct benefit to an end user, not how easy the feature is to implement.
@@ -58,13 +58,13 @@ Claude's confirmation of that clarified row remains pending. Reassess assumption
 
 These notes explain the rough ratings without committing a design, budget or schedule. Rows
 1–4 and 9–10 retain v4's ratings; row 5's ratings describe the delivered scope, not future
-risk-ratio work. The quick review and the outstanding row 6 clarification are recorded above;
-publication does not imply agreement on that clarification or authorize implementation.
+risk-ratio work. The classification consensus is recorded above; it does not authorize
+implementation, publication or a delivery schedule.
 
 | Row | Why this classification / assumption to revisit |
 |---|---|
 | 5 | Existing analytics and UI have strong user value; moderate delivery complexity within the already accepted scope. No additional implementation is implied. |
-| 6 | High user value assumes ratios, explanatory charts/graphs and AI-assisted improvement guidance together. Medium ease assumes a bounded first version using current holdings, validated daily history, stated return conventions and guidance grounded in computed results. A retrospective current-holdings scenario must be labeled, not presented as actual historical return; accurate deposit/withdrawal and holdings-change accounting would be Low ease. Reassess at design time without silently dropping visuals or guidance. |
+| 6 | High user value assumes ratios, explanatory charts/graphs and AI-assisted improvement guidance together. Medium ease assumes a bounded first version using current holdings, validated daily history, stated return conventions and general, explanatory guidance grounded in computed results. A retrospective current-holdings scenario must be labeled, not presented as actual historical return; accurate deposit/withdrawal and holdings-change accounting would be Low ease. Specific buy/sell or rebalancing recommendations are harder, overlap row 13 and need appropriate financial-advice safeguards; settle that distinction at design time. Reassess without silently dropping visuals or guidance. |
 | 7 | Strong user-facing improvement; harder because FA needs fundamentals and TA needs suitable history, with grounded explanations, provenance and fallback behavior. |
 | 8 | Visible engagement benefit; moderate ease for a small set of views using existing data. History-heavy or benchmark-dependent views would be harder. |
 | 11 | Important for coverage/reliability, with mostly indirect user benefit; harder due to provider licensing, symbol/currency normalization, reconciliation and failover. |

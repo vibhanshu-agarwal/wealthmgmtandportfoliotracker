@@ -909,8 +909,11 @@ usability and ease ratings instead of missing classifications. Claude's quick re
 recorded in v5, with accepted rating adjustments and the owner's clarifications: explanatory
 charts/graphs and AI-assisted guidance on improving the ratios belong within High-priority
 Sharpe/Sortino, not solely within the separate R2/R3 goals. Detailed design waits until after
-the freeze. Claude's confirmation of the clarified R1 rating remains pending. This local
-correction needs review and separate publication approval; feature implementation stays deferred.
+the freeze. Claude confirmed the clarified matrix against `28b7f16d`: Codex/Claude classification
+consensus is complete, including High/High/Medium for R1 with High priority. Medium ease assumes
+general, explanatory guidance; specific buy/sell or rebalancing recommendations need a harder
+design and safeguards, assessed later. This local correction still needs separate publication
+approval; feature implementation stays deferred.
 It changes no accepted demo verdict or engineering-backlog disposition.
 None of these documentation filings completes the
 wider documentation pass, media package, maintenance handoff or private cleanup; the three
