@@ -15,15 +15,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Integration tests for MarketDataService, InsightController, and ChatController
- * with real Redis via Testcontainers. Kafka is excluded; InsightService is mocked
- * since it depends on portfolio-service REST calls.
+ * with real Redis via Testcontainers. Kafka is excluded.
  */
 @Tag("integration")
 @Testcontainers
@@ -69,9 +67,6 @@ class MarketSummaryIntegrationTest {
     @Autowired private MarketDataService marketDataService;
     @Autowired private AiInsightService aiInsightService;
     @Autowired private StringRedisTemplate redisTemplate;
-
-    // Mock InsightService since it calls portfolio-service via REST
-    @MockitoBean private InsightService insightService;
 
     @BeforeEach
     void cleanRedis() {

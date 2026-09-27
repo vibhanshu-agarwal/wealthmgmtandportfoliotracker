@@ -23,8 +23,9 @@ import com.wealth.insight.dto.TickerSummary;
  * <p>It deliberately has no portfolio-analysis route. The removed
  * {@code GET /api/insights/{userId}/analyze} took its target user from the path and forwarded it to
  * portfolio-service, so any signed-in caller could read another user's analysis.
- * {@code AdvisorAnalyzeRemovalIT} pins that the route is gone, that no insights handler has a path
- * variable naming a user, and that no insights handler holds {@link InsightService}.
+ * The service behind it has been deleted too. {@code AdvisorAnalyzeRemovalIT} pins that the route
+ * is gone, that no insights handler has a path variable naming a user, and that no insight-service
+ * bean holds an outbound HTTP client that could forward a caller-chosen user to portfolio-service.
  */
 @RestController
 @RequestMapping("/api/insights")

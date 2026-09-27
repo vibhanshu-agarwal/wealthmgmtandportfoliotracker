@@ -1,7 +1,6 @@
 package com.wealth.insight.infrastructure.ai;
 
 import com.wealth.insight.AiInsightService;
-import com.wealth.insight.advisor.InsightAdvisor;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -40,10 +39,10 @@ import static org.mockito.Mockito.mock;
  *       the validator's mutual-exclusion logic in isolation across 200 random profile
  *       combinations.</li>
  *   <li><b>Context path ({@link ApplicationContextRunner})</b> — boots a minimal Spring
- *       context with all six AI adapter beans registered. Asserts that the context fails
+ *       context with all three AI adapter beans registered. Asserts that the context fails
  *       to start when both {@code bedrock} and {@code azure-ai} are active (validator fires
- *       via {@code @PostConstruct}), and that exactly one {@link AiInsightService} bean and
- *       exactly one {@link InsightAdvisor} bean are registered when startup succeeds.
+ *       via {@code @PostConstruct}), and that exactly one {@link AiInsightService} bean is
+ *       registered when startup succeeds.
  *       This satisfies the bean-uniqueness assertion prescribed by Task 5.4.</li>
  * </ol>
  */
@@ -72,7 +71,7 @@ class AiProviderProfileValidatorPropertyTest {
     }
 
     /**
-     * Runner pre-loaded with all six AI adapter beans + the validator.
+     * Runner pre-loaded with all three AI adapter beans + the validator.
      * Profile selection is applied per-test via {@code withPropertyValues}.
      */
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
@@ -80,11 +79,8 @@ class AiProviderProfileValidatorPropertyTest {
                     MockDepsConfig.class,
                     AiProviderProfileValidator.class,
                     MockAiInsightService.class,
-                    MockInsightAdvisor.class,
                     BedrockAiInsightService.class,
-                    BedrockInsightAdvisor.class,
-                    AzureOpenAiInsightService.class,
-                    AzureOpenAiInsightAdvisor.class
+                    AzureOpenAiInsightService.class
             );
 
     // ── Fast path: mutual-exclusion logic in isolation ────────────────────────
@@ -166,7 +162,7 @@ class AiProviderProfileValidatorPropertyTest {
 
     /**
      * P1 (context path, local profile): Context starts cleanly; exactly one
-     * {@link AiInsightService} (Mock) and one {@link InsightAdvisor} (Mock) are registered.
+     * {@link AiInsightService} (Mock) is registered.
      *
      * <p>Validates: Requirements 1.1, 1.2, 15.1
      */
@@ -178,15 +174,12 @@ class AiProviderProfileValidatorPropertyTest {
                     assertThat(ctx.getBeansOfType(AiInsightService.class)).hasSize(1);
                     assertThat(ctx.getBean(AiInsightService.class))
                             .isInstanceOf(MockAiInsightService.class);
-                    assertThat(ctx.getBeansOfType(InsightAdvisor.class)).hasSize(1);
-                    assertThat(ctx.getBean(InsightAdvisor.class))
-                            .isInstanceOf(MockInsightAdvisor.class);
                 });
     }
 
     /**
      * P1 (context path, bedrock profile): Context starts cleanly; exactly one
-     * {@link AiInsightService} (Bedrock) and one {@link InsightAdvisor} (Bedrock) are registered.
+     * {@link AiInsightService} (Bedrock) is registered.
      *
      * <p>Validates: Requirements 1.1, 1.2, 15.1
      */
@@ -198,15 +191,12 @@ class AiProviderProfileValidatorPropertyTest {
                     assertThat(ctx.getBeansOfType(AiInsightService.class)).hasSize(1);
                     assertThat(ctx.getBean(AiInsightService.class))
                             .isInstanceOf(BedrockAiInsightService.class);
-                    assertThat(ctx.getBeansOfType(InsightAdvisor.class)).hasSize(1);
-                    assertThat(ctx.getBean(InsightAdvisor.class))
-                            .isInstanceOf(BedrockInsightAdvisor.class);
                 });
     }
 
     /**
      * P1 (context path, azure-ai profile): Context starts cleanly; exactly one
-     * {@link AiInsightService} (Azure) and one {@link InsightAdvisor} (Azure) are registered.
+     * {@link AiInsightService} (Azure) is registered.
      *
      * <p>Validates: Requirements 1.1, 1.2, 15.1
      */
@@ -218,9 +208,6 @@ class AiProviderProfileValidatorPropertyTest {
                     assertThat(ctx.getBeansOfType(AiInsightService.class)).hasSize(1);
                     assertThat(ctx.getBean(AiInsightService.class))
                             .isInstanceOf(AzureOpenAiInsightService.class);
-                    assertThat(ctx.getBeansOfType(InsightAdvisor.class)).hasSize(1);
-                    assertThat(ctx.getBean(InsightAdvisor.class))
-                            .isInstanceOf(AzureOpenAiInsightAdvisor.class);
                 });
     }
 

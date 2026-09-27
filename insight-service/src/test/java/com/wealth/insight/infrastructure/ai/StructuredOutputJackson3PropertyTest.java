@@ -1,6 +1,5 @@
 package com.wealth.insight.infrastructure.ai;
 
-import com.wealth.insight.advisor.AnalysisResult;
 import com.wealth.insight.resolution.Intent;
 import com.wealth.insight.resolution.LlmResolution;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -22,31 +21,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Task 8.10 — Property 12: No Jackson 2 databind contamination of structured-output records.
  *
- * <p>Asserts {@link AnalysisResult} and {@link LlmResolution} round-trip through the Spring AI
+ * <p>Asserts {@link LlmResolution} round-trips through the Spring AI
  * 2.0 {@link BeanOutputConverter} (Jackson 3 schema path). General annotations remain on the
  * shared {@code com.fasterxml.jackson.annotation} jar per Jackson 3 migration rules.
  */
 class StructuredOutputJackson3PropertyTest {
 
-    private final BeanOutputConverter<AnalysisResult> analysisConverter =
-            new BeanOutputConverter<>(AnalysisResult.class);
     private final BeanOutputConverter<LlmResolution> resolutionConverter =
             new BeanOutputConverter<>(LlmResolution.class);
     private final JsonMapper mapper = JsonMapper.builder().build();
-
-    @Property(tries = 100)
-    void p12_analysisResult_roundTripsViaBeanOutputConverter(
-            @ForAll("analysisResults") AnalysisResult original) throws Exception {
-        assertNoJacksonDatabindAnnotations(AnalysisResult.class);
-
-        String json = mapper.writeValueAsString(original);
-        AnalysisResult parsed = analysisConverter.convert(json);
-
-        assertThat(parsed.riskScore()).isEqualTo(original.riskScore());
-        assertThat(parsed.concentrationWarnings()).isEqualTo(original.concentrationWarnings());
-        assertThat(parsed.rebalancingSuggestions()).isEqualTo(original.rebalancingSuggestions());
-        assertThat(analysisConverter.getJsonSchema()).contains("riskScore");
-    }
 
     @Property(tries = 100)
     void p12_llmResolution_roundTripsViaBeanOutputConverter(
@@ -64,16 +47,6 @@ class StructuredOutputJackson3PropertyTest {
         assertThat(parsed.categoryFilter()).isEqualTo(original.categoryFilter());
         assertThat(parsed.clarificationReason()).isEqualTo(original.clarificationReason());
         assertThat(resolutionConverter.getJsonSchema()).contains("intent");
-    }
-
-    @Provide
-    Arbitrary<AnalysisResult> analysisResults() {
-        Arbitrary<List<String>> warnings = Arbitraries.strings().alpha().ofMinLength(1).ofMaxLength(20)
-                .list().ofMinSize(0).ofMaxSize(3);
-        Arbitrary<List<String>> suggestions = Arbitraries.strings().alpha().ofMinLength(1).ofMaxLength(20)
-                .list().ofMinSize(0).ofMaxSize(3);
-        return Arbitraries.integers().between(1, 100)
-                .flatMap(score -> warnings.flatMap(w -> suggestions.map(s -> new AnalysisResult(score, w, s))));
     }
 
     @Provide

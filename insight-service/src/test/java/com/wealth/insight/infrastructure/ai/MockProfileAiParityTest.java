@@ -4,7 +4,6 @@ import com.wealth.insight.AiInsightService;
 import com.wealth.insight.ChatResolutionService;
 import com.wealth.insight.MarketDataService;
 import com.wealth.insight.advisor.AdvisorUnavailableException;
-import com.wealth.insight.advisor.InsightAdvisor;
 import com.wealth.insight.catalog.TickerCatalogService;
 import com.wealth.insight.chat.ChatResponseBuilder;
 import com.wealth.insight.dto.ChatRequest;
@@ -38,7 +37,6 @@ class MockProfileAiParityTest {
             .withUserConfiguration(
                     AiConfig.class,
                     MockAiInsightService.class,
-                    MockInsightAdvisor.class,
                     MockAssetResolutionClient.class
             )
             .withPropertyValues(
@@ -51,7 +49,6 @@ class MockProfileAiParityTest {
         runner.run(ctx -> {
             assertThat(ctx).doesNotHaveBean(ChatModel.class);
             assertThat(ctx.getBean(AiInsightService.class)).isInstanceOf(MockAiInsightService.class);
-            assertThat(ctx.getBean(InsightAdvisor.class)).isInstanceOf(MockInsightAdvisor.class);
             assertThat(ctx.getBean(MockAiInsightService.class).getSentiment("AAPL"))
                     .contains("AAPL")
                     .contains("Neutral");
