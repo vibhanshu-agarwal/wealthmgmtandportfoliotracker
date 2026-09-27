@@ -139,14 +139,14 @@ profile. Rule-based source denotes the deterministic adapter.
 
 At the audited baseline, the former `InsightService` (deleted by #332) called
 `GET /api/portfolio` at its configured portfolio-service URL, setting `X-User-Id` from the
-`/{userId}/analyze` path argument, and delegates the first returned portfolio to `InsightAdvisor`.
-It does not feed that result into `POST /api/chat`.
+`/{userId}/analyze` path argument, and delegated the first returned portfolio to `InsightAdvisor`.
+It did not feed that result into `POST /api/chat`.
 
 This was a source-confirmed **cross-user authorization flaw (IDOR)**: the gateway required a valid
-login, including the restricted showcase login, but this path never compares its target ID with
-the gateway-authenticated subject. A caller knowing another user's ID can request that user's
-derived risk score, concentration warnings and rebalancing suggestions when dependencies work;
-the response/error path can also disclose portfolio existence. Random UUIDs are not authorization.
+login, including the restricted showcase login, but this path never compared its target ID with
+the gateway-authenticated subject. A caller knowing another user's ID could request that user's
+derived risk score, concentration warnings and rebalancing suggestions when dependencies worked;
+the response/error path could also disclose portfolio existence. Random UUIDs are not authorization.
 The [finding](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is CLOSED by
 the later route-removal merge/deploy/probe evidence, not by the earlier portfolio-isolation suite
 or a decision to accept the flaw as harmless.
