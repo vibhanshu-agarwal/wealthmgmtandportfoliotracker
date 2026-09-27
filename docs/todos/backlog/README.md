@@ -30,18 +30,35 @@ The advisor route removal `35779e2e` (including fix `435f61c6`) is merged throug
 succeeded on insight revision `--0000082` / digest `aa1e9e3c…` on 2026-09-27 UTC. One owner-run
 Gate D at approximately 02:05 UTC returned `REMOVED`, exit 0, with the limited summary smoke check
 passing (158 schema-valid entries). Saved before/after bindings agree on the run, attempt and
-commit. Its route-removal item is CLOSED, not waived; retained advisor-code cleanup stays OPEN.
+commit. Its route-removal item is CLOSED, not waived; retained advisor-code cleanup is now
+merged through #332, not deployed.
 Codex verified the identical merge tree and green PR checks. Its earlier source review inspected
 saved test evidence, not a new Java run or live exploit. Deployment attribution rests on saved
 workflow logs, not a new Azure read. Live behavior comes from Claude's terminal transcription of
 the owner-run probe, not a new Codex request. The binding cannot exclude out-of-band Azure changes;
-see the item for proof limits. Publication of this closure still needs independent review/approval.
+see the item for proof limits. This closure is filed through #330 (`e03d6cc4`).
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
-the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional
-and open, with separate design/approval required; closure certifies no past-data cleanliness.
-No original 30-item audit disposition changes. Current totals are 33 directories: 10 fixed,
-2 superseded, 21 open, after the separately evidenced price-write and advisor-route closures.
+the separate header-proof item, now CLOSED by accepted proof delivered through #331.
+Historical-data audit Gate E is NOT PERFORMED, skipped by owner decision on 2026-09-27 UTC;
+closure certifies no past-data cleanliness.
+No original 30-item audit disposition changes. Current totals are 33 directories: 11 fixed,
+2 superseded, 20 open, after price-write/advisor-route closures and header-proof delivery.
+
+**Accepted follow-ups, now merged — 2026-09-27 UTC:** the owner approved header tests first, then
+retained advisor-code cleanup; both are implemented locally and accepted by Codex after Fable's
+review and Claude's fixes. Header candidate `c647b6f0` has a verified fresh capture: 328 unit,
+284 integration and 4 Wave 8 passes, no skips; all 74 XML hashes match. Cleanup candidate
+`3638aec2` plus `52dd6e20` has 1,421 unit passes, 7 live-only skips and 40 integration passes.
+Owner-approved #331 merged `c647b6f0` at `d439d3a2` (05:57:00 UTC); #332 merged `52dd6e20`
+at `bd1c325f` (05:57:25 UTC). Codex verified merged heads/times and the exact combined tree.
+The header item is CLOSED within its test-proof scope; advisor cleanup is complete in source,
+not deployed. These are not new live proofs. Smoke replacements, leftover settings
+and seed/cache retirement remain distinct open follow-ups in the advisor item. Gate E is skipped
+by owner decision based on owner-reported use only by the owner and agents; the exact dated
+decision is quoted in the [demo dashboard](../../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md).
+No audit was performed or historical-data integrity established. Documentation publication
+and code/doc merges require approval.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain
@@ -54,9 +71,9 @@ additional implementations to perform.
 
 | Status | Count | Meaning |
 |---|---:|---|
-| CLOSED — fixed/completed | 10 | Delivered source or accepted completion evidence; includes the separately deployed/live-validated price-write and advisor-route removals. Closure is limited to each item's scope/cut. |
+| CLOSED — fixed/completed | 11 | Delivered source or accepted completion evidence; includes deployed/live-validated price-write and advisor-route removals and the test-only header-proof delivery. Closure is limited to each item's scope/cut. |
 | CLOSED — superseded | 2 | The architecture/premise was retired. Do not implement the old fix plan. |
-| OPEN | 21 | The original 20 residual items plus the header-proof gap. Includes deferred, parked, mitigated and partially delivered items. |
+| OPEN | 20 | The original 20 residual items. Includes deferred, parked, mitigated and partially delivered items. Advisor-cleanup follow-ups are subwork, not additional directories. |
 | **Total directories** | **33** | Original audit of 30 plus three source-review additions. ROUND2/ROUND3 are historical documents inside one retired item, not additional items. |
 
 Non-blocking, accepted-for-demo, not observed, and unverified are **not** synonyms for fixed.
@@ -75,8 +92,9 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Total-value hydration](total-value-e2e-hydration/README.md) | `c6fd8408` repaired missing standalone assets; frontend subsequently migrated to static export. Not whole-valuation verification. |
 | [Total-value skeleton E2E](total-value-skeleton-e2e/README.md) | Same fixing commit and historical incident as hydration entry. Do not reimplement the obsolete NextAuth hypotheses. |
 | [Overview / Market Data page implementation](ui-polish-overview-market-data/README.md) | `71273107`, completed ledger and current components/tests. Original placeholder pages are replaced; later currency/overflow gaps remain separate. |
-| [Public market-price write authorization](public-market-price-write-authorization/README.md) | #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK. Historical-price integrity is not certified; optional Gate E needs separate design/approval. |
-| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1 and one owner-run Gate D `REMOVED`, exit 0; summary smoke check passed. Closed by route removal, not a cross-user live exploit test or broader authorization proof. Out-of-band Azure changes are not excluded; retained advisor-code cleanup remains OPEN. |
+| [Public market-price write authorization](public-market-price-write-authorization/README.md) | #327 (`9c733f6d`), scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with AAPL reads OK. Historical-price integrity is not certified; optional Gate E is skipped by owner decision, not performed. |
+| [Portfolio advisor cross-user authorization](portfolio-advisor-cross-user-authorization/README.md) | #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1 and one owner-run Gate D `REMOVED`, exit 0; summary smoke check passed. Closed by route removal, not a cross-user exploit test or broader authorization proof. Out-of-band Azure changes are not excluded. Retained advisor-code cleanup is merged through #332, not deployed; smoke/config/seed follow-ups remain open. |
+| [Gateway user-header spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md) | Accepted `c647b6f0` merged through #331 (`d439d3a2`); 88 downstream-capture cases and scoped mutation proof. Test-only delivery, not a production change or exhaustive security certification. |
 
 ## Closed — superseded/no longer relevant
 
@@ -98,7 +116,6 @@ the delivered mechanism should be implemented again. Current cloud state was not
 | [Demo portfolio/ticker integrity](demo-portfolio-and-ticker-integrity/README.md) | **Partially resolved.** Independent 159-asset demo seed, BTC/MM repair, catalog packaging and freshness delivered. Tata successor/allocation remains an open product/data decision. |
 | [Full E2E coverage audit](e2e-coverage-audit-post-asset-picker/README.md) | **Follow-on audit.** Inventory exclusions/vacuity and complete cross-suite acceptance matrix; demo suite is evidence input, not this audit's closure. |
 | [EventBridge warming](eventbridge-not-working/README.md) | **Parked AWS standby work.** Several old source prerequisites fixed; reactivation remains a cost/operations decision with fresh prerequisites, not an active defect claim. |
-| [Gateway user-header spoofing regression proof](gateway-user-header-spoofing-regression-proof/README.md) | One protected market-route forwarded-header assertion merged through #327 (`9c733f6d`); duplicate headers, permit-all paths and broader mutation proof remain open. No current bypass is claimed. |
 | [Kafka consumer wake/scaling](kafka-consumers-have-no-scale-rule/README.md) | No Kafka scaler; consumers explicitly scale to zero. Decide idle-liveness policy and assess retention; session warm-up is not autonomous wake. |
 | [Supported market-data provider](market-data-yahoo-unofficial-api/README.md) | **Mitigated.** Yahoo cookie/crumb still used; durable provider/coverage/rate-limit and alerting work remains. Symbol repair does not remove provider risk. |
 | [Mocked-chaos 429 E2E](mocked-chaos-429-batch-assertion-redesign/README.md) | Still skipped; deliver controlled-fixture exact batching/no-extra-request and graceful-degradation coverage. |

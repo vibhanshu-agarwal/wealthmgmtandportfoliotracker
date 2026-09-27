@@ -1,8 +1,9 @@
 # Portfolio advisor cross-user authorization (IDOR)
 
-> **Approval boundary:** owner-authorized Gates A–D are complete. Publication of this closure
-> and any further deployment, live operation or retained-code cleanup need separate authority.
-> Push/PR and merge of this documentation also require explicit approval. None is granted here.
+> **Approval boundary:** owner-authorized Gates A–D are complete; the route-removal closure is
+> filed through #330 (`e03d6cc4`). The owner separately approved local retained-code cleanup.
+> Cleanup PR #332 is merged. This later status update's publication/merge, deployment and live operations
+> still need their relevant approval. None is granted by this document.
 
 **Status:** CLOSED — fixed by route removal, deployed and live-validated on 2026-09-27 UTC.
 **Priority:** High (security). **Origin:** 2026-09-26 UTC E2E guide review against `main@8aa4035b`.
@@ -17,7 +18,7 @@ broader security certification. The old handler's Azure exploitability remains u
 At the audited baseline (before removal), the gateway requires a valid login for
 `GET /api/insights/{userId}/analyze`, including the restricted
 showcase login. However, [InsightController](../../../../insight-service/src/main/java/com/wealth/insight/InsightController.java)
-uses the caller-selected path ID and [InsightService](../../../../insight-service/src/main/java/com/wealth/insight/InsightService.java)
+uses the caller-selected path ID and the former `InsightService` (deleted from current source by #332)
 forwards it as `X-User-Id` to `GET /api/portfolio`. Neither compares it with the authenticated
 subject injected by the gateway. Portfolio-service trusts that service header.
 
@@ -35,7 +36,7 @@ the route in source does not establish that a deployed environment has received 
 
 | Environment | Source wiring and remaining uncertainty |
 |---|---|
-| Azure demo | [Terraform's insight-service environment](../../../../infrastructure/terraform/azure/main.tf) omits `PORTFOLIO_SERVICE_URL`. [Application configuration](../../../../insight-service/src/main/resources/application.yml) defaults to `http://localhost:8081`; absent another override, the fetch is expected to fail. No deployed environment/revision or exploit was checked. |
+| Azure demo | [Terraform's insight-service environment](../../../../infrastructure/terraform/azure/main.tf) omits `PORTFOLIO_SERVICE_URL`. The old application default was `http://localhost:8081`; absent another override, the fetch was expected to fail. #332 removes the consuming property from [current configuration](../../../../insight-service/src/main/resources/application.yml). No pre-fix environment/revision or exploit was checked. |
 | Local Compose | [Compose](../../../../docker-compose.yml) supplies the portfolio-service URL. The pre-fix handler was reachable when that older stack and its dependencies ran; current main removes it. |
 | Retained AWS | [Compute configuration](../../../../infrastructure/terraform/aws/modules/compute/main.tf) supplies the portfolio-service URL. This is retained source wiring, not proof that the parked stack is currently running/exploitable. |
 
@@ -48,11 +49,12 @@ assessment or waiver of this newly recorded endpoint defect.
 
 The chosen treatment removes the unused public endpoint, with no replacement or alias. The
 controller no longer injects `InsightService`; its remaining health/summary routes and chat are
-unchanged. The retained advisor service is not called by another production HTTP handler. Any
+unchanged. At #329 the retained advisor service had no other production HTTP caller; #332 now
+deletes that service from source. Any
 future exposure must derive the target from the trusted gateway-authenticated subject, not a
 caller-selected ID. Deployment identity and the separately authorized Gate D result are below.
 
-`AdvisorAnalyzeRemovalIT` uses a recording fake portfolio-service and a positive control call.
+The original #329 `AdvisorAnalyzeRemovalIT` used a recording fake portfolio-service and a positive control call.
 Its original-route checks cover missing, ordinary and showcase identity fixtures; its structural
 guard checks handler paths and direct advisor-service fields. Claude's saved XML shows RED before
 removal (2 tests, 2 failures) and GREEN on the reviewed head (2 tests, no failures). The saved
@@ -115,11 +117,50 @@ deploy-log copy `cf978f907664b9cd5fa4e9a98fc4605723a89cdfb8fd5bd1913223367ff4ed4
 These bind privately retained evidence, not files published by this documentation update.
 
 **Still open:** GitHub binding cannot exclude out-of-band Azure changes. The broader
-[header-proof gap](../gateway-user-header-spoofing-regression-proof/README.md) remains OPEN.
-Removing the retained advisor service/adapters/tests is separate **OPEN cleanup**, not required
-for this route-removal closure and not implemented or authorized here. Historical exploitability,
+[header-proof gap](../gateway-user-header-spoofing-regression-proof/README.md) is CLOSED by #331
+within its regression-test scope. Removing the retained advisor service/adapters/tests is
+**COMPLETE IN SOURCE** through #332, not deployed. Historical exploitability,
 other endpoints, peer-service trust and chat/model reliability are not certified. No further live
 operation, rerun, deployment or cleanup is authorized by this record.
+
+## Retained-code cleanup — merged, not deployed
+
+The owner approved local cleanup after header-proof work. Claude's candidate `3638aec2` plus
+`52dd6e20` is based on `main@e03d6cc4`, separate from the gateway test branch. It removes the
+unused service, portfolio DTOs/result, advisor interface/adapters, `PortfolioNotFoundException`
+and its 404 handler,
+base-URL property and their tests. Active sentiment/chat/resolution adapters, shared builders,
+`AdvisorUnavailableException`/503 handling and the seeder's cache-eviction contract are preserved.
+It merged through [#332](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/332)
+at `bd1c325f469915918366a2610d8e33263493b118` (2026-09-27 05:57:25 UTC).
+Codex verified GitHub's head/time and that the merged tree differs from `52dd6e20` only by
+#331's test file. Claude reports all eight required PR checks passed. No cleanup deployment
+is recorded: the newest GitHub Deploy run remains 36285996570 at `6a82f3da`, the route-removal
+deployment, not this later cleanup. This metadata check is not a fresh Azure identity read.
+
+Fable accepted with minors; `52dd6e20` hardens the retained `AdvisorAnalyzeRemovalIT`. Codex
+reviewed that final source and saved results: 1,428 unit cases (1,421 passed, 7 live-only skips)
+and 40/40 integration passes. The 420 fewer unit cases and extra integration case reconcile with
+the removed advisor tests and new guard. The source/API guard checks route absence, user-path
+variables and declared outbound-client fields in instantiated `com.wealth` beans, including proxy
+target classes and generic wrappers. A registered control holder makes an empty result non-vacuous.
+Restoring the advisor service fails the client check; restoring its route fails all three checks.
+This replaces the old runtime portfolio-stub/control proof; it is not an equivalent network trace.
+
+Limits: the client guard runs under `default`, scans declared field types to bounded generic
+depth, and cannot see clients constructed inside methods, other-profile/prototype beans or every
+HTTP library. It targets accidental re-exposure, not a deliberate workaround. No new live proof.
+
+**OPEN follow-ups:** replace the deleted opt-in Azure/Bedrock advisor smoke tests with tests for
+the active sentiment path (neither replacement is implemented or live-run); remove unused
+insight portfolio-URL settings/comments in Compose and parked AWS Terraform; separately assess
+retiring the now-unwritten portfolio-analysis cache/seed route and dependent E2E setup.
+The explicit RestClient starter is preserved. These residuals do not reopen the route IDOR.
+The insight and portfolio flow guides and detailed architecture are reconciled against the
+merged tree in this documentation draft. Independent review and owner-authorized filing remain
+pending. Code merge is complete; documentation publication/merge and any scoped deployment
+remain separate decisions.
+Gate E was skipped by owner decision on 2026-09-27 UTC, not performed; historical prices are not certified.
 
 See the [insight flow](../../../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
 [portfolio trust boundary](../../../e2e-flows/portfolio-service-e2e.md#2-endpoints-and-trust-boundary)

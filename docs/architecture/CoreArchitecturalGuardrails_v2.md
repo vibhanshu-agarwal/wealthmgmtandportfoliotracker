@@ -63,7 +63,8 @@ topics or replay production data.
   [IDOR](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md) is CLOSED by route
   removal, scoped deployment and one bound owner-run probe, not by the earlier isolation suite or
   accepted chat. Missing Azure URL wiring was not authorization; old exploitability is unverified.
-  Out-of-band Azure changes are not excluded; retained-code cleanup and broader header proof stay OPEN.
+  Out-of-band Azure changes are not excluded; advisor cleanup is merged through #332, not deployed,
+  and header proof is delivered through #331 within its recorded limits.
 - Preserve B2's exact demo write exceptions; do not claim `ro` blocks all saves.
   Manual reset has additional identity/guard checks, and presence is advisory, not a lock.
   The reset response exposes an opaque replica token, not the shared internal key.
@@ -72,9 +73,9 @@ topics or replay production data.
   is now CLOSED by removal, scoped deploy and one owner-run live probe; this certifies no past-data
   cleanliness. Direct internal seed/reset routes are still publicly routed,
   shared-key-gated and lack JWT/origin/rate-limit layers; do not call them private network APIs.
-- User-ID injection has a unit assertion, but named spoofing cases only check non-401 status.
-  Keep [direct sanitization regression proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
-  OPEN; source stripping is not a tested exploit or complete regression guard.
+- Older named spoofing cases only check non-401 status; #331 now delivers scoped downstream-capture
+  [sanitization regression proof](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md).
+  The test-proof item is CLOSED, not exhaustive security certification or a new live exploit test.
 - Logout does not revoke an existing one-hour JWT. Keep its accepted defect status visible.
 - Profile-specific origin checks and internal ingress are distinct controls. Do not promise
   global direct-origin blocking from the gateway filter alone.

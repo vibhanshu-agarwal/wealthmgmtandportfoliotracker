@@ -1,8 +1,31 @@
 # Asset Picker — E2E Master Plan to Production
 
-> **Owner approval required:** push/PR and merge of this documentation closure update each need
-> explicit approval after independent review. Completed advisor Gates A–D authorize no additional
-> live operation, deployment or retained-code cleanup. Until merged, this status copy is a candidate.
+> **Owner approval required:** push/PR and merge of this later documentation candidate.
+> Header-test #331 and advisor-cleanup #332 are merged; cleanup is not deployed.
+> Completed advisor Gates A–D authorize no new deployment or live operation. Gate E is skipped by
+> owner decision, not performed. Until merged, this documentation copy is a candidate.
+
+The accepted runtime/program-state code baseline is unchanged by this documentation draft.
+
+**Accepted follow-ups, now merged — 2026-09-27 UTC:** header proof `c647b6f0` and retained
+advisor cleanup `3638aec2` plus `52dd6e20`, both based on `main@e03d6cc4`, are reviewed and
+accepted and merged through #331 (`d439d3a2`) and #332 (`bd1c325f`). Cleanup is not deployed.
+Codex verified merge identities/trees and the gateway full-suite
+capture: 328 unit, 284 integration and 4 Wave 8 passes, no skips, 74/74 XML hashes matching;
+`slim-image` was outside the selected tasks. Cleanup results remain 1,421 unit passes, 7 live-only
+skips and 40 integration passes with accounted-for removals. These are saved offline results,
+not new Codex Java runs or live proof. Header proof is CLOSED; cleanup is complete in source.
+Backlog totals are 33 directories (11 fixed, 2 superseded, 20 OPEN). Active-path cloud-smoke replacement, unused
+settings and seed/cache retirement are distinct OPEN follow-ups. Advisor route-removal closure
+is filed through #330 (`e03d6cc4`); these later candidates do not reopen it or advance Spec A/B1/B2.
+The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) owns details and next actions:
+review/file this refreshed documentation, assess any deployment separately, then continue freeze
+preparation. On 2026-09-27 UTC the owner skipped Gate E based on
+owner-reported use only by the owner and agents. The exact decision is quoted in the linked
+demo dashboard. It was not performed; historical-data integrity is
+not certified. No historical-data read or repair is approved by this update. Claude accepted this
+source/status reconciliation through `d2cb4113`; the dashboard records final successful main CI.
+Publication approval remains required; source delivery is not deployment.
 
 **Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
 [E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are
@@ -29,8 +52,8 @@ the owner-run own-ID probe returned `REMOVED`, exit 0; summary smoke check passe
 entries). Saved bindings at 02:03:23/02:09:47 UTC agree on that deploy run/attempt/commit.
 Codex checked the hashed saved evidence, not a fresh Azure read or live request. Route-wide absence
 also rests on reviewed mapping removal/regression; no cross-user live exploit test was made.
-Out-of-band Azure changes are not excluded; retained advisor-code cleanup and the broader
-header-proof gap remain OPEN. The earlier
+Out-of-band Azure changes are not excluded; retained advisor-code cleanup is merged through
+#332, not deployed, and the header-proof gap is CLOSED through #331. The earlier
 flow/architecture documentation is filed through #328 (`598bdf17`); this later status follow-up
 is separate from code delivery and does not advance Spec A/B1/B2 acceptance.
 The architecture review also confirmed the subsequently fixed
@@ -42,9 +65,10 @@ with an identical tree and heavy PR CI green. Owner-authorized scoped deploy 362
 on market-data revision `--0000082` / image `sha256:48a649c0…9881`; one owner-run Gate D probe
 returned `REMOVED`, exit 0, with AAPL reads OK on 2026-09-26 UTC. The price-write defect is CLOSED
 within that route-removal scope, based on saved deploy logs and terminal-output transcription,
-not a new Codex live/Azure/database read. Optional historical-data audit Gate E stays open and
-requires separate design/approval; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
-broader header coverage remains OPEN. Documentation filing remains separate from code publication.
+not a new Codex live/Azure/database read. Optional historical-data audit Gate E was skipped by
+owner decision on 2026-09-27 UTC, not performed; no past-data cleanliness is established. Its merged gateway test supplies one protected-route spoof proof;
+broader header proof is delivered through #331 within its recorded limits. Documentation filing
+remains separate from code publication.
 No application code or live operation is authorized by this documentation update.
 
 **Roadmap/root README process reconciliation — 2026-09-26 UTC:**
@@ -76,9 +100,11 @@ the audit is filed through #324 (`6f1e5700`).
 The later flow/architecture review adds three OPEN security/coverage entries against `main@8aa4035b`,
 initially bringing the index to 33 directories / 23 OPEN without changing the original 30 dispositions.
 The later separately recorded price-write closure brought totals to 9 fixed/completed,
-2 superseded and 22 OPEN; advisor-route closure on 2026-09-27 UTC now brings current totals to
-10 fixed/completed, 2 superseded and 21 OPEN across those same 33 directories. Retained advisor-code
-cleanup stays separate OPEN work, not another directory in this count.
+2 superseded and 22 OPEN; advisor-route closure brought totals to 10 fixed/completed,
+2 superseded and 21 OPEN. Header-proof delivery through #331 now brings current totals to
+11 fixed/completed, 2 superseded and 20 OPEN across those same 33 directories. Retained advisor-code
+cleanup is merged through #332, not deployed; smoke/config/seed follow-ups remain subwork, not
+another directory in this count.
 
 **Last verified:** 2026-09-21 at local candidate
 `19fb82d552c57fe8b619a34fe7fb8b1f526797ea`, based on `main@07faf2c6`, for independently accepted

@@ -68,7 +68,8 @@ At `8aa4035b`, the public price POST lacked operator authorization: ordinary sel
 could change shared prices. That [security defect](../todos/backlog/public-market-price-write-authorization/README.md)
 is CLOSED after #327, scoped deploy 36259687567 and one owner-run Gate D `REMOVED`, exit 0, with
 AAPL reads OK. The public route is removed, not newly role/key-gated; historical exploitability
-was not tested and optional historical-price audit Gate E remains open.
+was not tested. Optional historical-price audit Gate E is skipped by owner decision on
+2026-09-27 UTC, not performed; historical-data integrity is not certified.
 
 Bulk insights do not invoke AI per ticker. Chat combines stored market facts with optional
 model sentiment; its source label can describe cached output and is not proof of a new model
@@ -79,7 +80,9 @@ at the audited baseline. It is now CLOSED by removal through #329 (`6a82f3da`), 
 check passing. Runtime evidence is the saved terminal transcription; deployment identity is from
 workflow artifacts, not a fresh Azure read. Out-of-band Azure changes are not excluded. The old
 handler's exploitability is unverified; missing portfolio URL wiring was not authorization.
-Retained advisor-code cleanup and the broader header-proof gap remain OPEN.
+Retained advisor-code cleanup is merged through #332 (`bd1c325f`), not deployed; the broader
+header-proof gap is CLOSED through #331 (`d439d3a2`) within its test scope. Current-source
+follow-up is reconciled against that combined merge; smoke/config/seed follow-ups remain OPEN.
 
 ## Read next
 

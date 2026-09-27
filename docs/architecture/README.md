@@ -36,8 +36,10 @@ the publication rule above; prior runtime acceptance does not cover these new fi
 The price-write item is now CLOSED after #327, scoped deploy 36259687567 and one owner-run
 Gate D `REMOVED`, exit 0; its separately recorded closure certifies no past-data cleanliness.
 The advisor closure separately rests on #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1
-and the saved own-ID Gate D `REMOVED`, exit 0, with summary smoke check passing. Optional Gate E,
-the broader header-proof gap and retained advisor-code cleanup remain OPEN. Neither closure
+and the saved own-ID Gate D `REMOVED`, exit 0, with summary smoke check passing. Optional Gate E
+is skipped by owner decision on 2026-09-27 UTC, not performed. Header proof is CLOSED through
+#331 (`d439d3a2`); advisor-code cleanup is merged through #332 (`bd1c325f`), not deployed.
+Current source references are reconciled against that merge; smoke/config/seed follow-ups remain open. Neither closure
 certifies old exploitability or excludes out-of-band Azure changes.
 
 ## Historical records — do not execute as current plans
