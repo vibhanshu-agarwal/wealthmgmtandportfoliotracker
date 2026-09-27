@@ -15,6 +15,10 @@ The five existing helpers were copied byte-for-byte from the privately reviewed 
 A4/operator handoff on 2026-09-27 UTC. No runtime behavior was redesigned. Their source SHA-256
 values below identify the preserved bytes; Git attributes retain LF checkout endings.
 
+Unchanged helper comments use old names: the test's `test/mock-health-server.mjs` now means
+`tests/mock-health-server.mjs`; the reader's "operator script, step 0" means
+[DEMO_OPERATOR.md §3](../../docs/runbooks/DEMO_OPERATOR.md#3-step-0--hard-stop-before-any-edit).
+
 | Repository path (relative to this folder) | SHA-256 |
 |---|---|
 | `demo-warmup.ps1` | `9589a873a46f7cf8897b901844d263eb6d22bb1c7c3e47fd47638d3a4c384cda` |
@@ -27,8 +31,9 @@ The private operator draft (`c2aea2f017f8dbf5874eb8b89b6eec67eb58e6e7ed5af54a1cc
 followed a rehearsed copy (`0a0005a7bccdd741ce9dc6ebea50ca939c39c877d993207e019fb8f5b8594d11`).
 It is not copied as current instructions: its account wording, revision table and targeted-check
 status had become stale. The new guide preserves the edit/reverse/verify sequence but reconciles
-those facts. **The new guide has not been independently reviewed or live-rehearsed.** Prior
-acceptance of a private draft does not automatically accept this rewrite.
+those facts. **Independent review required corrections; follow-up clearance is pending, and
+the new guide has not been live-rehearsed.** Acceptance of the private draft does not
+automatically accept this rewrite.
 
 The fixtures contain two invented holdings only, not private account data. The seeded E2E
 email in the reader is a public test identifier, not a credential. No passwords, tokens,
@@ -44,6 +49,7 @@ warm-up's live API default. It deletes only its own temporary case folders.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo/tests/demo-warmup.test.ps1
 node --check scripts/demo/tests/mock-health-server.mjs
 node --check scripts/demo/rehearsal-read-portfolio.js
+python -B -m unittest discover -s scripts/tests -p test_master_plan_status_propagation.py
 python -B scripts/demo/verify-snapshot.py --diff scripts/demo/tests/fixtures/baseline.txt scripts/demo/tests/fixtures/baseline.txt
 python -B scripts/demo/verify-snapshot.py --diff scripts/demo/tests/fixtures/baseline.txt scripts/demo/tests/fixtures/changed.txt
 ```
@@ -53,6 +59,8 @@ changed fixture exits **1** with `CHANGED AAPL: 1.000 -> 1.001`. That last failu
 These fixture checks are limited CLI smoke checks, not comprehensive verifier coverage.
 The JavaScript reader is syntax-checked only in this preservation task; it is not executed
 against a browser or live session.
+The named 33-test suite verifies `scripts/check_master_plan_status_propagation.py`; it is
+distinct from the CI changed-path classifier, `scripts/classify_changed_paths.py`.
 
 Fresh clean-clone results (54 warm-up checks and the bounded syntax/fixture checks) are recorded
 in the [handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). They are offline evidence,

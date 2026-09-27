@@ -32,7 +32,8 @@ Cleanup query/count and login-proof limitations remain as recorded in the dashbo
 
 1. Use the repository [operator guide](DEMO_OPERATOR.md) and [preserved kit](../../scripts/demo/README.md),
    with its source hashes and offline checks. The helpers are unchanged; the reconciled guide
-   is a new, not-live-rehearsed rewrite requiring independent review. The kit is durable only
+   is a not-live-rehearsed rewrite with review corrections awaiting follow-up clearance.
+   The kit is durable only
    after its owner-authorized carrying PR merges into main. Stop if required files/checks are
    missing; do not fall back to a workstation-specific historical path.
 2. Confirm the approved target/build/account and that no other session or E2E workflow uses

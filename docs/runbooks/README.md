@@ -15,8 +15,9 @@ The [backlog inventory](../todos/backlog/README.md) identifies genuine residual 
 
 The 2026-09-27 Git-only restart package adds the [operator guide](DEMO_OPERATOR.md),
 [freeze/restart handoff](PROJECT_FREEZE_HANDOFF.md) and [preserved kit](../../scripts/demo/README.md).
-Helpers are copied unchanged; the reconciled guide is not yet independently reviewed or
-live-rehearsed. An unmerged copy is a candidate; filing requires the carrying PR to merge.
+Helpers are copied unchanged; review corrections to the reconciled guide await follow-up
+clearance, and the guide is not live-rehearsed. An unmerged copy is a candidate; filing requires
+the carrying PR to merge.
 
 ## What was reconciled
 

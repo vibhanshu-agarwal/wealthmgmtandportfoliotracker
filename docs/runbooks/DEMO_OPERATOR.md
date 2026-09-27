@@ -6,7 +6,8 @@ or recovery authority, and does not authorize cleanup. Publication/merge of this
 requires approval. An unmerged copy is a candidate.
 
 **Prepared:** 2026-09-27 UTC from the prior reviewed operator flow and merged status at
-`main@cedbb5af`. This reconciled guide is **not yet independently reviewed or live-rehearsed**.
+`main@cedbb5af`. Independent review of `1fecc1f8` required corrections; this follow-up awaits
+reviewer clearance. The reconciled guide has **not been live-rehearsed**.
 Historical acceptance and evidence limits remain in the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). The
 [kit inventory](../../scripts/demo/README.md) preserves the helpers and their original hashes.
@@ -14,10 +15,20 @@ Historical acceptance and evidence limits remain in the
 ## 1. Before starting
 
 Use the existing seeded **writable E2E account**, not the deleted A4/post-#320 certification
-users. Obtain its credentials through approved secure inputs; none are supplied here.
+users. **For this browser walkthrough, the owner signs in; an agent operator never reads,
+types or handles the password.** The owner obtains credentials through approved secure inputs;
+none are supplied here or put into chat. This is the preserved walkthrough protocol, not a
+blanket restriction on separately reviewed and owner-authorized credential automation.
 The reader is bound to that E2E identity. Do not substitute another account or create one
 without a reviewed protocol. Ensure no other person, browser session or E2E workflow uses
 the same account during the demonstration.
+
+Confirm Edit Holdings can open before the demo. When a holding is pending a data upgrade,
+the UI blocks opening the dialog and shows an editing-temporarily-unavailable notice. Stop;
+do not bypass that guard or start a migration under this walkthrough's approval.
+
+Use a desktop browser viewport of 1280×800 or wider, as in the original demo scope. Keep the
+pane at a stable size; do not force a viewport that the browser pane cannot accommodate.
 
 The showcase account is different: its read-only filter deliberately exempts holdings save
 and its own demo reset. Do not describe it as unable to save, or use its reset as this
@@ -35,7 +46,10 @@ There is no arbitrary date or appointment imposed here.
 
 ## 2. Warm-up and keep-alive
 
-From the repository root, in a dedicated PowerShell window, under the approved live session:
+Start about **15 minutes before the audience**, within the approved live session, to allow
+page data and Kafka consumers to catch up, including queued events from the 08:00 market
+refresh. This lead time is planning guidance, not proof of consumer catch-up. From the
+repository root, in a dedicated PowerShell window:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo/demo-warmup.ps1
@@ -58,8 +72,9 @@ guarantees. An expired keep-alive is not continuing readiness.
 
 ## 3. Step 0 — hard stop before any edit
 
-1. Sign in securely to the approved E2E account. Keep the browser pane at a stable size and
-   locate controls from a fresh page state after layout changes.
+1. The owner signs in to the approved E2E account; the agent operator does not handle the
+   password. Keep the desktop pane at a stable size and locate controls from a fresh page
+   state after layout changes.
 2. Execute [rehearsal-read-portfolio.js](../../scripts/demo/rehearsal-read-portfolio.js) inside
    that signed-in page using the approved browser's JavaScript evaluation facility. Do not
    execute it with Node as a live reader. Never display, copy or store the token.
@@ -80,7 +95,8 @@ guarantees. An expired keep-alive is not continuing readiness.
    saved raw API response.
 5. Choose two distinct, freshly priced ordinary USD stocks already held: **Q** to change,
    **R** to remove. Note their exact baseline quantities and the approved temporary Q quantity.
-   Avoid stale/unpriced holdings and tiny quantities obscured by display rounding.
+   Avoid stale/unpriced holdings and assets whose sub-cent prices are obscured by price-column
+   rounding (the historical SHIB-USD display problem), not merely holdings with small quantities.
 
 If any baseline/read/copy/verification check fails, make **no edit**. Keep snapshots private;
 the verifier does not replace the identity/count/version checks.
@@ -135,3 +151,26 @@ The source-labelled chat observation was not proof of a fresh model invocation.
 
 This guide does not revive a full-suite, seed, cleanup or deployment approval. Future operation
 must reassess data, model/provider availability and code/deployment drift.
+
+## 6. Presentation fallbacks — not a passing check
+
+These are presentation-only options within the approved session. They do not grant GO,
+authorize another request, waive a baseline/save/restore check or prove live functionality.
+If readiness is lost, pause the live edit flow or postpone it; use a prepared example only
+with its limitation visible. If an edit has already been saved, exact restoration remains
+required. If that cannot be safely verified, stop for the separate recovery decision in §5.
+
+- **Chat has no reply after about 30 seconds:** say so. If an approved prepared answer is
+  available, show it labelled **"Prepared fallback — not a live AI answer"**; otherwise skip
+  that presentation or postpone. The one request can remain in flight for about 150 seconds
+  before a gateway-timeout error appears under the recorded Azure configuration; other errors
+  can appear sooner. Do not send another question. If a live answer appears later, distinguish
+  it explicitly from the prepared fallback. The media package still needs brainstorming and
+  preparation; no prepared answer is supplied or assumed to exist in a private folder.
+- **Market data is unavailable or slow:** say so; omit incomplete figures. Continue presenting
+  Portfolio only if its own data is loaded and the applicable safety checks pass. Do not edit
+  without GO and the verified baseline, or call missing market data a successful check.
+- **A cold page spins for more than about 45 seconds:** check the existing keep-alive window,
+  move to another already-loaded page and return within the approved session. This does not
+  authorize restarting warm-up, extending its bounds or retrying a save. If Portfolio is still
+  unavailable, postpone the edit demonstration rather than bypassing step 0.
