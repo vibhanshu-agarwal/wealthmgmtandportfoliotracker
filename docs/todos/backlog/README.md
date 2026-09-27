@@ -35,13 +35,24 @@ Codex verified the identical merge tree and green PR checks. Its earlier source 
 saved test evidence, not a new Java run or live exploit. Deployment attribution rests on saved
 workflow logs, not a new Azure read. Live behavior comes from Claude's terminal transcription of
 the owner-run probe, not a new Codex request. The binding cannot exclude out-of-band Azure changes;
-see the item for proof limits. Publication of this closure still needs independent review/approval.
+see the item for proof limits. This closure is filed through #330 (`e03d6cc4`).
 Price-write removal at `83607f5d`, merged through #327 (`9c733f6d`), is CLOSED after scoped deploy
 36259687567 and the owner-run Gate D result `REMOVED`, exit 0. Its gateway test partially covers
-the separate header-proof item, which stays OPEN. Historical-data audit Gate E remains optional
+the separate header-proof item, which stays OPEN pending delivery of its accepted local candidate.
+Historical-data audit Gate E remains optional
 and open, with separate design/approval required; closure certifies no past-data cleanliness.
 No original 30-item audit disposition changes. Current totals are 33 directories: 10 fixed,
 2 superseded, 21 open, after the separately evidenced price-write and advisor-route closures.
+
+**Local follow-up acceptance — 2026-09-27 UTC:** the owner approved header tests first, then
+retained advisor-code cleanup; both are implemented locally and accepted by Codex after Fable's
+review and Claude's fixes. Header candidate `c647b6f0` has a verified fresh capture: 328 unit,
+284 integration and 4 Wave 8 passes, no skips; all 74 XML hashes match. Cleanup candidate
+`3638aec2` plus `52dd6e20` has 1,421 unit passes, 7 live-only skips and 40 integration passes.
+Neither candidate is merged or deployed. The header item and separate cleanup therefore remain
+OPEN pending delivery; totals/dispositions do not change. Smoke replacements, leftover settings
+and seed/cache retirement remain distinct open follow-ups in the advisor item. Gate E is deferred
+until these tasks are delivered and its scope is assessed. Publication/merge require approval.
 
 This is a restart inventory, not a new implementation plan. The original 30 item directories were checked
 against current source, tests, Git history and accepted repository evidence. Their READMEs retain

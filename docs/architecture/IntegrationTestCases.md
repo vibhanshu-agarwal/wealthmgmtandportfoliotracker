@@ -24,6 +24,24 @@ name is not itself a test against today's deployed Azure revisions.
 
 ## 2. Source-linked cases and limits
 
+**Accepted local candidates — 2026-09-27 UTC, not yet on main:** header candidate `c647b6f0`
+adds `GatewayUserIdHeaderIntegrationTest` with 88 downstream-capture cases across protected,
+service-health/internal and rejected-auth paths, plus non-routed auth/actuator characterization.
+The verified full capture has 328 unit, 284 integration and 4 Wave 8 passes, no skips; all 74 XML
+hashes match. The `slim-image` gate was not included. Mutation evidence exercises failed stripping
+and identity rejection, accounting for redundant `remove`/`set` and security/filter protections.
+The [header item](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
+holds the precise sampling and proof limits; its delivery remains OPEN.
+
+Advisor cleanup `3638aec2` plus `52dd6e20` retains but redesigns `AdvisorAnalyzeRemovalIT`:
+removed-path HTTP checks, user-path-variable detection and a controlled, proxy/generic-aware
+declared-client-field check under `default`. The old portfolio-stub runtime proof is removed
+with the client. Saved results: 1,421 unit passes, 7 live-only skips and 40 integration passes;
+restoring the service/route breaks the guard. Deleted advisor smoke tests have no active-path
+replacement yet. See the [cleanup record](../todos/backlog/portfolio-advisor-cross-user-authorization/README.md#retained-code-cleanup--local-acceptance-not-delivery).
+Codex inspected source and saved results, not new Java runs or live endpoints. The source-linked
+table below describes merged coverage, not an assertion that these candidates are already filed.
+
 **Merged follow-up evidence:** price-removal commit `83607f5d`, merged through #327 (`9c733f6d`), adds
 `MarketPriceWriteRemovalIT` (real Mongo/Kafka, required control write, unchanged documents/topic,
 read-only handler mappings) and `MarketPriceWriteGatewayIntegrationTest` (production route list,

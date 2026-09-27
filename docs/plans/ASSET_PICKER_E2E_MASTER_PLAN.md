@@ -1,8 +1,26 @@
 # Asset Picker — E2E Master Plan to Production
 
-> **Owner approval required:** push/PR and merge of this documentation closure update each need
-> explicit approval after independent review. Completed advisor Gates A–D authorize no additional
-> live operation, deployment or retained-code cleanup. Until merged, this status copy is a candidate.
+> **Owner approval required:** push/PR and merge of the header-test, advisor-cleanup and later
+> documentation candidates need their relevant explicit approval. The owner authorized local
+> implementation/testing of the two tasks only. Completed advisor Gates A–D authorize no new
+> deployment, live operation or Gate E audit. Until merged, this status copy is a candidate.
+
+The accepted runtime/program-state code baseline is unchanged by this documentation draft.
+
+**Local follow-up acceptance — 2026-09-27 UTC:** header candidate `c647b6f0` and retained
+advisor cleanup `3638aec2` plus `52dd6e20`, both based on `main@e03d6cc4`, are reviewed and
+accepted locally, not published/merged/deployed. Codex verified the new gateway full-suite
+capture: 328 unit, 284 integration and 4 Wave 8 passes, no skips, 74/74 XML hashes matching;
+`slim-image` was outside the selected tasks. Cleanup results remain 1,421 unit passes, 7 live-only
+skips and 40 integration passes with accounted-for removals. These are saved offline results,
+not new Codex Java runs or live proof. Header/cleanup delivery remains OPEN; backlog totals stay
+33 directories (10 fixed, 2 superseded, 21 OPEN). Active-path cloud-smoke replacement, unused
+settings and seed/cache retirement are distinct OPEN follow-ups. Advisor route-removal closure
+is filed through #330 (`e03d6cc4`); these later candidates do not reopen it or advance Spec A/B1/B2.
+The [demo dashboard](ASSET_PICKER_DEMO_PREPARATION_PLAN.md) owns details and next actions:
+obtain publication/merge approvals, assess any deployment separately, then scope optional Gate E.
+No historical-data read or repair is approved by this update. Refresh delivery status before
+independent review/publication of this documentation candidate.
 
 **Flow/architecture documentation reconciliation — 2026-09-26 UTC:** the four
 [E2E flow guides](../e2e-flows/) and [architecture folder](../architecture/README.md) are

@@ -1,8 +1,9 @@
 # Portfolio advisor cross-user authorization (IDOR)
 
-> **Approval boundary:** owner-authorized Gates A–D are complete. Publication of this closure
-> and any further deployment, live operation or retained-code cleanup need separate authority.
-> Push/PR and merge of this documentation also require explicit approval. None is granted here.
+> **Approval boundary:** owner-authorized Gates A–D are complete; the route-removal closure is
+> filed through #330 (`e03d6cc4`). The owner separately approved local retained-code cleanup.
+> Push/PR and merge of that cleanup or this later status update, deployment and live operations
+> still need their relevant approval. None is granted by this document.
 
 **Status:** CLOSED — fixed by route removal, deployed and live-validated on 2026-09-27 UTC.
 **Priority:** High (security). **Origin:** 2026-09-26 UTC E2E guide review against `main@8aa4035b`.
@@ -116,10 +117,39 @@ These bind privately retained evidence, not files published by this documentatio
 
 **Still open:** GitHub binding cannot exclude out-of-band Azure changes. The broader
 [header-proof gap](../gateway-user-header-spoofing-regression-proof/README.md) remains OPEN.
-Removing the retained advisor service/adapters/tests is separate **OPEN cleanup**, not required
-for this route-removal closure and not implemented or authorized here. Historical exploitability,
+Removing the retained advisor service/adapters/tests is separate **OPEN cleanup**, implemented
+locally and accepted as described below, but not merged or deployed. Historical exploitability,
 other endpoints, peer-service trust and chat/model reliability are not certified. No further live
 operation, rerun, deployment or cleanup is authorized by this record.
+
+## Retained-code cleanup — local acceptance, not delivery
+
+The owner approved local cleanup after header-proof work. Claude's candidate `3638aec2` plus
+`52dd6e20` is based on `main@e03d6cc4`, separate from the gateway test branch. It removes the
+unused service, portfolio DTOs/result, advisor interface/adapters, advisor-only exception/handler,
+base-URL property and their tests. Active sentiment/chat/resolution adapters, shared builders,
+`AdvisorUnavailableException`/503 handling and the seeder's cache-eviction contract are preserved.
+
+Fable accepted with minors; `52dd6e20` hardens the retained `AdvisorAnalyzeRemovalIT`. Codex
+reviewed that final source and saved results: 1,428 unit cases (1,421 passed, 7 live-only skips)
+and 40/40 integration passes. The 420 fewer unit cases and extra integration case reconcile with
+the removed advisor tests and new guard. The source/API guard checks route absence, user-path
+variables and declared outbound-client fields in instantiated `com.wealth` beans, including proxy
+target classes and generic wrappers. A registered control holder makes an empty result non-vacuous.
+Restoring the advisor service fails the client check; restoring its route fails all three checks.
+This replaces the old runtime portfolio-stub/control proof; it is not an equivalent network trace.
+
+Limits: the client guard runs under `default`, scans declared field types to bounded generic
+depth, and cannot see clients constructed inside methods, other-profile/prototype beans or every
+HTTP library. It targets accidental re-exposure, not a deliberate workaround. No new live proof.
+
+**OPEN follow-ups:** replace the deleted opt-in Azure/Bedrock advisor smoke tests with tests for
+the active sentiment path (neither replacement is implemented or live-run); remove unused
+insight portfolio-URL settings/comments in Compose and parked AWS Terraform; separately assess
+retiring the now-unwritten portfolio-analysis cache/seed route and dependent E2E setup.
+The explicit RestClient starter is preserved. These residuals do not reopen the route IDOR.
+Code publication/merge and any scoped deployment remain separate decisions. Gate E is deferred;
+the owner will assess its scope after these two tasks are delivered.
 
 See the [insight flow](../../../e2e-flows/insight-service-e2e.md#5-separate-portfolio-advisor-path-and-limits),
 [portfolio trust boundary](../../../e2e-flows/portfolio-service-e2e.md#2-endpoints-and-trust-boundary)

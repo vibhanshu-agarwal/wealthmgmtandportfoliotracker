@@ -1,10 +1,12 @@
 # Asset Picker Demo Preparation Implementation Plan
 
-> **Owner approval required before push/PR and merge of this documentation follow-up:** each
-> needs explicit owner authorization. Advisor code publication/merge, scoped deployment and one
-> owner-run probe (Gates A–D) are complete. Further live operations or retained-code cleanup need
-> separate authority. This unmerged documentation copy is a candidate; filing requires independent
-> review and owner-authorized merge into `main`. This document grants no further authority.
+> **Owner approval required before push/PR and merge:** the header-test branch, retained-advisor
+> cleanup branch and this documentation follow-up each need their relevant explicit authorization.
+> The owner approved local implementation/testing of both tasks, not publication or deployment.
+> Advisor route-removal Gates A–D and closure filing through #330 are complete. Further live
+> operations, deployment and Gate E remain separately gated. This documentation copy is a candidate;
+> filing requires independent review and owner-authorized merge into `main`. This document grants
+> no further authority.
 
 > **For agentic workers:** Execute this plan phase-by-phase. Claude owns implementation, Fable 5.1
 > reviews implementation before Codex architecture/status reconciliation and final acceptance. Do
@@ -18,6 +20,7 @@
 reconciliation audited against `main@8aa4035b` and filed through #328 at `598bdf17`;
 advisor route removal CLOSED after #329 at `6a82f3da`, scoped deploy 36285996570 attempt 1
 and one owner-run Gate D `REMOVED`, exit 0;
+header-proof and retained-advisor-cleanup candidates accepted locally, not merged/deployed;
 roadmap/root README/v5, backlog and runbooks filed;
 post-#320 suite/cleanup status
 published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
@@ -42,11 +45,36 @@ behavior comes from Gate D; revision/digest attribution comes from Gate C artifa
 This does not prove past non-use, clean historical prices or unchanged out-of-band configuration.
 The additional
 [header-sanitization test gap](../todos/backlog/gateway-user-header-spoofing-regression-proof/README.md)
-is OPEN regression-proof work, with one protected-route spoof assertion merged through #327 in the
-price-fix tests; broader cases remain unproven. It is not a confirmed current bypass. No earlier
+is OPEN pending delivery of its accepted local regression-proof candidate; one protected-route
+assertion is already merged through #327. It is not a confirmed current bypass. No earlier
 demo waiver closed either security finding; the advisor has its own closure evidence below.
-The broader header-proof gap remains OPEN. Current backlog totals are 33 directories:
-10 fixed, 2 superseded, 21 OPEN. Retained advisor-code cleanup is separate OPEN work.
+Current backlog totals remain 33 directories: 10 fixed, 2 superseded, 21 OPEN. Header proof and
+separate retained advisor-code cleanup are locally accepted, not merged/deployed, as recorded below.
+
+**Owner-approved local follow-ups — 2026-09-27 UTC:** header tests first, then retained advisor
+cleanup; assess Gate E scope only after these tasks are delivered. Both candidates are now
+accepted by Codex following Fable review and Claude's fixes. Neither is published, merged or
+deployed; no Java test execution, live operation or secret access was performed by Codex here.
+
+- **Header proof:** `c647b6f0` on `main@e03d6cc4`, one test file, no production behavior change.
+  A fresh offline capture at that exact commit/tree reports exit 0 and 328/328 unit, 284/284
+  integration (including 88 new cases), and 4/4 Wave 8 passes, no skips. Codex verified all 74 XML
+  hashes, timestamps, task execution and metadata. The `slim-image` gate was not run. The prior
+  overwritten full-suite report is superseded by this capture; mutation evidence stays separate.
+  Proof/sample limits and hashes are in the linked header item. No routed auth case is invented:
+  AuthController and actuator are outside GlobalFilters.
+- **Advisor cleanup:** `3638aec2` plus `52dd6e20`, separately based on `main@e03d6cc4`.
+  Unused advisor code/tests are removed; active sentiment/chat and seed/cache contracts remain.
+  Saved results checked by Codex: 1,421 unit passes, 7 live-only skips and 40/40 integration passes;
+  test-count changes reconcile. The retained removal guard is redesigned with explicit structural
+  limits. Removal of opt-in advisor smoke tests leaves an OPEN replacement task for the active
+  sentiment path, not a passed Azure/Bedrock smoke gate. Unused deployment settings and seed/cache
+  retirement remain distinct follow-ups. Details are in the linked advisor item.
+
+**Next:** seek separate code push/PR approval, then review CI and obtain merge approval. Refresh
+this draft with actual merge IDs before publication; do not close the header item or label cleanup
+delivered merely from local acceptance. Any deployment is separately scoped/authorized. Gate E
+has not started and this update authorizes no database read or repair.
 
 The local deployment/probe packet is accepted by Codex: packet SHA-256
 `0602badfbec143587c9052d7960f4e7a1742d8ab0a924d7916c854c200db13d9`, probe SHA-256
@@ -119,8 +147,9 @@ Saved GitHub binding checks at **02:03:23 UTC** and **02:09:47 UTC** agree: depl
 attempt. They cannot exclude out-of-band Azure changes. The summary smoke check proved this
 response was populated/schema-valid, not catalog completeness, price accuracy or freshness.
 Gates A–D are complete and the advisor IDOR is CLOSED within the route-removal scope. The
-retained advisor-code cleanup and broader header-proof gap remain OPEN. The original chat/model
-acceptance limits remain; no additional live run or cleanup is authorized.
+retained advisor-code cleanup and broader header-proof item remain OPEN pending delivery of the
+accepted local candidates above. The original chat/model acceptance limits remain; no additional
+live run or account/data cleanup is authorized by this record.
 
 Closure evidence hashes: terminal/binding transcript
 `1e7a8c74c515ed2166c54277028b1b0b6f1f46b562aae0310e466a534623a296`;
@@ -247,8 +276,8 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 1 — Asset Picker delivery | **COMPLETE**, deployed and accepted in Production on 2026-09-20 | None; do not reopen for later-phase work |
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
-| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write removal is CLOSED after #327, scoped deploy 36259687567 and one owner-run probe. Advisor IDOR is CLOSED after #329 (`6a82f3da`), scoped deploy 36285996570 attempt 1 and one bound own-ID Gate D `REMOVED`, exit 0. Historical-price audit Gate E remains optional/open, not performed. Header proof is OPEN with partial merged coverage; retained advisor-code cleanup is separate OPEN work | Review/file the closure update under owner approval. Any Gate E audit or retained-code cleanup needs separate design/approval. Preserve prior demo and probe limits; no further live operation is authorized |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup status filed through #323 (`d515aa5b`), original backlog through #324 (`6f1e5700`), runbooks through #325 (`5d559478`), roadmap/root README/v5 through #326 (`8aa4035b`), and flow/architecture plus price-write closure through #328 (`598bdf17`, reviewed head `5ffdd305`). This later advisor closure update follows the publication rule above. Claude accepted `881fb68d` and `7ee3eafd`; the deployment/closure follow-ups need independent review before filing. The operator script remains a private reviewed draft | Independently review/file this status follow-up under owner approval. Continue the wider maintenance handoff; no media-brainstorming dependency for factual reconciliation |
+| 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof `c647b6f0` and retained advisor cleanup `52dd6e20` are locally accepted, not merged/deployed; both delivery items remain OPEN. Gate E is optional/open, not performed | Obtain code publication/merge approval; scope any deployment separately. Assess Gate E only after these two tasks are delivered. Preserve demo/probe limits and distinct smoke/config/seed follow-ups |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup filed through #323, original backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330 (`e03d6cc4`). This header/cleanup status draft is later and not independently reviewed or filed. The operator script remains a private reviewed draft | Refresh merge status before publication, independently review this draft, then seek push/PR and merge approval. Continue the maintenance handoff; factual reconciliation does not wait for media brainstorming |
 | 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
