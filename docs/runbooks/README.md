@@ -93,8 +93,9 @@ This reconciliation counts as filed only when its independently reviewed, owner-
 carrying PR merges into `main`; an unmerged branch copy remains a candidate.
 Roadmap/root README reconciliation is filed through #326/#334; flow/architecture reconciliation
 and later security/test/source-cleanup status are filed through #328/#330/#333. The Git-only kit
-is filed through #335 and its merged-main verification record awaits independent review. The media
-package is complete and reviewed. Maintenance decisions and approved private-artifact/worktree
-cleanup remain separate freeze work. Before a long pause, identify
+is filed through #335 and its merged-main verification record becomes durable when its
+independently reviewed carrying change merges. The media package is complete and reviewed.
+Maintenance decisions and approved private-artifact/worktree cleanup remain separate freeze work.
+Before a long pause, identify
 the operator who owns the manual observability audit and approved secret/identity maintenance;
 no schedule, rotation, resource shutdown or recurring monitor was created by this documentation.

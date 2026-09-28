@@ -27,7 +27,10 @@ and one owner-run Gate D `REMOVED`, exit 0;
 header proof merged through #331 (`d439d3a2`); advisor cleanup merged through #332 (`bd1c325f`), not deployed;
 roadmap/root README/v5, backlog and runbooks filed;
 post-#320 suite/cleanup status
-published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`).
+published through #323 at `d515aa5b`; targeted #3–#6 status published through #322 at `b4e989b3`;
+restart kit filed through #335 at `66e5064f`; completed media-package status filed through #336
+at `59af233e`; and a full clone of that merged main revision passed the bounded offline restart
+verification recorded below).
 
 **Operational status:** owner-authorized market-data deployment (Gate C) and one live probe
 (Gate D) are complete. Optional historical-data audit Gate E is **NOT PERFORMED — skipped by
@@ -210,7 +213,8 @@ the matrix/consensus and Git-only requirement correction, filed through #334 at 
 (2026-09-27 07:33:20 UTC). The operator-kit/restart package was reviewer-cleared at `0ad791ae`
 and filed through #335 at `66e5064f`; the completed media-package status is filed through #336
 at `59af233e`. A fresh full clone of that merged main revision passed the bounded offline restart
-checks recorded below; review of this documentation record remains separate.
+checks recorded below; this verification record becomes durable when its independently reviewed
+carrying change merges.
 #323 (`d515aa5b`, 2026-09-25) filed the accepted suite and cleanup status. The post-#320 suite and
 three-user cleanup are complete under approvals R and C; the verdict remains
 `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
@@ -328,7 +332,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | Review and file this verification record; assign maintenance responsibilities |
+| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | This verification record becomes durable when its independently reviewed carrying change merges; assign maintenance responsibilities |
 | 6 — Demo material | **COMPLETE:** the post-fix rehearsal ran on the #320 build and restored the E2E account identical to its verified baseline. The LinkedIn, resume, PPT and video package was subsequently created and reviewed; audience, duration, narrative and live-versus-recorded form are agreed | Run the demo with the script's warm-up |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -917,7 +921,8 @@ will be retained. Filing and cleanup require their own approvals; this is not de
   both snapshot outcomes, and 121 local Markdown-path checks with zero missing targets. Both
   configuration examples were present; no actual secret was read. This check used no live/cloud
   access and grants no such authority. The [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md)
-  records the exact scope; its documentation update awaits independent review and filing.
+  records the exact scope; this verification record becomes durable when its independently reviewed
+  carrying change merges.
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
   and [enhancements v5](../../roadmap_enhancements_v5.md) against `main@5d559478`; preserve v1–v4
@@ -1053,6 +1058,7 @@ audience, duration, narrative and live-versus-recorded form are confirmed.
   cleaned up under separate approval C. The verdict stays `PASS_WITH_EXPECTED_DEFECTS`, and the seven
   non-USD #3 value checks remain INCONCLUSIVE, not PASS. This narrower exit does not imply A5,
   exhaustive backlog closure, polished media or `1.0.0`.
-- **Project freeze:** still requires review and filing of the completed Git-only restart-verification
-  record, maintenance ownership and approved private-artifact handling. The LinkedIn, resume, PPT
-  and video package is complete and must not be listed as pending work.
+- **Project freeze:** still requires maintenance ownership and approved private-artifact handling.
+  The Git-only restart-verification record becomes durable when its independently reviewed carrying
+  change merges. The LinkedIn, resume, PPT and video package is complete and must not be listed as
+  pending work.

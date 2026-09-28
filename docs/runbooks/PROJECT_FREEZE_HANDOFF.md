@@ -139,8 +139,9 @@ new warm-up suite. Review clearance is recorded. No live readiness is implied by
 
 **Merged-main clean-clone verification — 2026-09-28 UTC:** a separate full clone of
 `main@59af233ee0fcea7c07a95b528418ed665401e69b` was clean before and after the checks. It used
-only tracked files, the bundled Python runtime, Windows PowerShell, Node, a localhost mock and
-synthetic fixtures. It did not read an actual secret file or contact a live/cloud target.
+only tracked files, the Codex workspace-dependency Python runtime, Windows PowerShell, Node, a
+localhost mock and synthetic fixtures. That Python runtime is supplied by Codex tooling rather
+than this repository. It did not read an actual secret file or contact a live/cloud target.
 
 | Offline check | Result |
 |---|---|
@@ -152,15 +153,21 @@ synthetic fixtures. It did not read an actual secret file or contact a live/clou
 | Snapshot CLI smoke | Same fixture: `IDENTICAL`, exit 0. Changed fixture: `CHANGED AAPL: 1.000 -> 1.001`, exit 1 as deliberately rejected. |
 | Master-plan status propagation suite | 33/33 passed; `Ran 33 tests`, `OK` |
 
-Windows PowerShell was `5.1.26100.9549`, Node was `v26.5.0`, and the bundled Python runtime was
-`3.12.14`. The full application suite and a live browser flow were not run. This verification
-result is ready for independent review; its documentation becomes a durable restart record when
-its reviewed carrying change merges. No live readiness is implied.
+Windows PowerShell was `5.1.26100.9549`, Node was `v26.5.0`, and the Codex workspace-dependency
+Python runtime was `3.12.14`. Independent review also reproduced the checks with Python `3.14.4`.
+The full application suite and a live browser flow were not run. A reviewed carrying merge makes
+this documentation a durable restart record. No live readiness is implied.
+
+**Windows restart-path note:** the longest tracked repository-relative path is 120 characters.
+Clone into a short path on Windows. If a deep checkout reports a missing target that Git tracks,
+enable `core.longpaths=true` for that clone and rerun the check before classifying the document
+link as broken.
 
 ## 5. Remaining freeze sequence
 
 1. The kit was filed through #335 at `66e5064f`; #336 at `59af233e` records the completed media
-   package. Independently review and file this merged-main verification record.
+   package. This merged-main verification record becomes durable when its independently reviewed
+   carrying change merges.
 2. The full clean-clone offline checks above passed; retain their bounded, non-live scope.
 3. Settle the maintenance decisions above.
 4. The LinkedIn, resume, PPT and video package is complete and reviewed; its agreed audience,
@@ -169,5 +176,6 @@ its reviewed carrying change merges. No live readiness is implied.
    cleanup. Preserve a final accurate Git status handoff before the long pause.
 
 The existing app's technical demo gates are not reopened just by this preservation task.
-The project freeze is not complete: review/filing of this record, maintenance choices and private
-hygiene still need their own steps.
+The project freeze is not complete: maintenance choices and private hygiene still need their own
+steps. This verification record becomes durable when its independently reviewed carrying change
+merges.
