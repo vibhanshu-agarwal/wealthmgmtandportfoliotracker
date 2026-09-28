@@ -219,14 +219,14 @@ the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-
 merged at `c4e58f1c`, and [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
 closed unmerged.
 
-**Required before the eventual project freeze (owner direction, 2026-09-25):** neither item is a
-fast-track demo blocker.
+**Required before the eventual project freeze:** the remaining documentation and restart work is
+not a fast-track demo blocker.
 - **Reconcile and audit the existing documents.** The [roadmap](../../ROADMAP.md), the
   [operational runbooks](../runbooks/) and the [backlog](../todos/backlog/) already exist; they need
-  reconciling with the delivered state. This factual cleanup does not wait for the brainstorming
-  session.
-- **Create the LinkedIn, resume, PPT and video package.** Its content awaits the agreed
-  brainstorming session and is **not yet drafted**.
+  reconciling with the delivered state.
+- **Media and career package — COMPLETE and reviewed.** The LinkedIn, resume, PPT and video
+  package was created and reviewed across multiple rounds. Its audience, duration, narrative and
+  live-versus-recorded form were agreed during those completed reviews.
 
 The A4 test users and the post-#320 suite's three temporary users have been deleted, subject to the
 evidence limits below. The existing E2E account was restored after both the 2026-09-24 and the
@@ -239,7 +239,8 @@ Production mutation.
 **Goal:** Make this portfolio project ready for a credible live desktop demo quickly. Deliver the
 Asset Picker, deploy the already-merged application fixes, run the existing multi-user browser suite
 against the served candidate, fix only demo-blocking findings, and prepare a short repeatable demo
-script. Broader hardening, exhaustive documentation and polished media are follow-on work.
+script. Broader hardening and exhaustive documentation are follow-on work. The separately reviewed
+media package is complete.
 
 **Architecture:** Keep the six phases for traceability, but use the fast-track demo exit below rather
 than making every Phase 4-6 backlog item a prerequisite. Phase 1 contains only the dependencies,
@@ -328,7 +329,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
 | 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, and matrix/Git-only requirement #334 (`cedbb5af`) are filed. The kit/restart guide is cleared at `0ad791ae`; publication and conditional green-CI merge are owner-approved. It is filed when the carrying PR merges into main | Verify the filed [kit](../../scripts/demo/README.md) and [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md) from clean main; assign maintenance responsibilities |
-| 6 — Demo material | **Post-fix rehearsal COMPLETE (2026-09-25):** the rehearsed script on the #320 build; the E2E account was restored identical to its verified baseline. The later wording-amended draft was not re-rehearsed. The LinkedIn, resume, PPT and video package is required before project freeze and not yet drafted | Run the demo with the script's warm-up; media content waits for the brainstorming session |
+| 6 — Demo material | **COMPLETE:** the post-fix rehearsal ran on the #320 build and restored the E2E account identical to its verified baseline. The LinkedIn, resume, PPT and video package was subsequently created and reviewed; audience, duration, narrative and live-versus-recorded form are agreed | Run the demo with the script's warm-up |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
 checks and final-build rehearsal are distinct records. The suite does not turn accepted
@@ -337,7 +338,7 @@ inconclusive or unverified observations into passes or fixes.
 **Fast-track status publication gate complete:** #323 merged the qualified suite/cleanup status
 at `d515aa5b` on 2026-09-25. At that acceptance, no technical or status-publication fast-track
 gate remained open within the then-accepted desktop-demo scope. This does not complete the separately required freeze
-documentation or media package, or close accepted/unverified defects.
+documentation, restart verification, maintenance handoff or private-artifact cleanup, or close accepted/unverified defects.
 That conclusion concerns the accepted evidence scope: the later price-write defect and advisor
 IDOR were not exercised by those checks. Price-write removal now has its own merge/deploy/probe
 closure, not an inherited suite PASS. The advisor IDOR is **CLOSED by merged/deployed route removal
@@ -352,9 +353,10 @@ The operator-script review, final-build rehearsal, targeted #3–#6 demo disposi
 and cleanup are done. The seven non-USD #3 value checks and listed edge cases remain inconclusive
 or unverified despite their non-blocking demo disposition.
 
-**Freeze package, separately incomplete (owner direction):** reconciling and auditing the existing
-roadmap, runbooks and backlog, and creating the LinkedIn, resume, PPT and video package. Neither is
-a fast-track demo blocker. A5 remains optional.
+**Freeze work, separately incomplete:** reconciling and auditing the remaining documentation,
+verifying the Git-only restart record, assigning maintenance ownership and handling approved private
+artifacts. The LinkedIn, resume, PPT and video package is complete and reviewed. None is a
+fast-track demo blocker. A5 remains optional.
 
 **Post-#320 evidence snapshot (2026-09-25):** #320 merged at `db51cf5b`; scoped backend deploy
 [36092375156](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/actions/runs/36092375156)
@@ -419,10 +421,11 @@ traffic; the owner-operated Phase 3 desktop suite completes once uncontended wit
 uncollected scenario counted as a pass; Production state is restored or its retained state recorded;
 and no unresolved finding blocks the agreed live demo. A verdict with expected defects must name
 them and be accepted explicitly, not be relabeled PASS. Record accepted non-blocking findings and a
-short operator script. Full Phase 5 documentation, the freeze package (reconciling the existing
-roadmap, runbooks and backlog; creating the LinkedIn, resume, PPT and video package) and an
+short operator script. Full Phase 5 documentation, the remaining freeze work (reconciling the
+existing roadmap, runbooks and backlog; restart verification, maintenance ownership and approved
+private-artifact handling) and an
 independent A5 before/after Azure attestation are **not** fast-track demo blockers. The freeze
-package is still required before project freeze. The B3 run-bound revision/digest
+work is still required before project freeze. The B3 run-bound revision/digest
 proof supplies the serving identity needed for this narrower exit. A5 remains available as optional
 corroboration under its own approval; it is not silently marked complete.
 
@@ -575,10 +578,10 @@ independent attestation.
    - **Status publication complete:** #323 merged at `d515aa5b`. The later backlog audit has
      its own review/publication step and is freeze documentation, not a reopened technical gate.
    - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
-   - **Before project freeze:** reconcile and audit the existing roadmap, runbooks and backlog; this
-     factual cleanup need not wait. Create the LinkedIn, resume, PPT and video package once the
-     brainstorming session has set its content. A full architecture rewrite and `1.0.0` can follow
-     after the demo.
+   - **Before project freeze:** reconcile and audit the existing roadmap, runbooks and backlog;
+     verify the Git-only restart record, assign maintenance ownership and handle approved private
+     artifacts. The LinkedIn, resume, PPT and video package is complete and reviewed. A full
+     architecture rewrite and `1.0.0` can follow after the demo.
 
 ## Owner approval callouts
 
@@ -596,8 +599,8 @@ fresh, named bounds.
 
 - Phase 1 and 2 are accepted; B3 and A4 run 3 apply to the earlier candidate. The post-#320
   suite separately meets the final technical gate with one expected defect. #320's targeted-check
-  evidence limits remain as recorded. Comprehensive documentation and media do not gate the
-  fast-track exit.
+  evidence limits remain as recorded. Comprehensive documentation does not gate the fast-track
+  exit; the media package is complete and reviewed.
 - Portfolio Settings is deferred and does not gate demo readiness.
 - Phase 1 must not absorb the scrollbar fix, general backlog work, the multi-user suite, or the
   documentation overhaul.
@@ -888,9 +891,8 @@ portfolio-demo gate.
   rehearsed copy was amended in wording and Codex-reviewed on 2026-09-25 without a second
   rehearsal; publication of the private script is not implied.
 
-**Required before project freeze (owner direction, 2026-09-25).** These documents already exist; the
-work is to reconcile and audit them against the delivered state. It is factual cleanup and need not
-wait for the brainstorming session, which applies only to the media package (Phase 6).
+**Required before project freeze.** These documents already exist; the work is to reconcile and
+audit them against the delivered state. The media package is already complete and reviewed.
 
 **Git-only restart requirement — owner direction, 2026-09-27 UTC:** all documents and artifacts
 needed after the pause must be tracked in Git and merged into `main` through reviewed,
@@ -950,7 +952,7 @@ is green on 2026-09-27 UTC. It is filed through #334 at `cedbb5af`; later unmerg
 candidates. Feature implementation stays deferred.
 It changes no accepted demo verdict or engineering-backlog disposition.
 None of these documentation filings completes the
-wider documentation pass, media package, maintenance handoff or private cleanup; the three
+wider documentation pass, maintenance handoff or private cleanup; the three
 new feature requests remain deferred and do not block the freeze.
 
 **Full documentation backlog (not required for fast-track demo-ready):**
@@ -993,8 +995,8 @@ those separate source/deploy/probe records, not the documentation audit or earli
 
 ## Phase 6: Prepare demo material
 
-**Status:** The walkthrough was rehearsed on the final build; the LinkedIn, resume, PPT and video
-package is not started.
+**Status:** The walkthrough was rehearsed on the final build. The LinkedIn, resume, PPT and video
+package is complete and was reviewed across multiple rounds.
 
 The first Claude-operated rehearsal ran on 2026-09-24 against the pre-#320 build: the owner signed in, the edit/save/readback/chat/restore journey completed,
 all 159 tickers and quantities matched the baseline digest after restore, and the session signed
@@ -1006,8 +1008,8 @@ warm-load comparison were not a rehearsal.
 script copy and ended with an `IDENTICAL` restore (dashboard). The later wording-amended draft was
 not re-rehearsed. **Fast-track exit outcome:** a
 short walkthrough against the final served build, with exact restoration and a fallback for
-chat/market-data unavailability. The LinkedIn, resume, PPT and video package is required before
-project freeze, not before the demo.
+chat/market-data unavailability. The LinkedIn, resume, PPT and video package is complete and
+reviewed; it is not a remaining project-freeze task.
 
 - [x] Draft the short desktop narrative and rehearse the older build once, restoring the E2E
   account exactly (2026-09-24; historical evidence, not final-build credit).
@@ -1018,38 +1020,37 @@ project freeze, not before the demo.
   baseline is restored after the reversible edit. Record the outcome and non-sensitive evidence pointers
   (2026-09-25; restore `IDENTICAL`; the evidence is local).
 
-**Media and career package: required before project freeze (owner direction, 2026-09-25).** Its
-content awaits the agreed brainstorming session and is not yet drafted.
+**Media and career package — COMPLETE and reviewed.** The LinkedIn, resume, PPT and video package
+was completed after the agreed brainstorming session and reviewed across multiple rounds. The
+audience, duration, narrative and live-versus-recorded form are confirmed.
 
-- [ ] LinkedIn material.
-- [ ] Resume material.
-- [ ] PPT deck.
-- [ ] Video.
+- [x] LinkedIn material.
+- [x] Resume material.
+- [x] PPT deck.
+- [x] Video.
 
 **Media production steps:**
 
-- [ ] Agree the audience, duration, narrative, and live-demo versus recorded-demo balance.
-- [ ] Build the slide deck from the accepted architecture and E2E evidence.
-- [ ] Record a clean scripted Production walkthrough using non-sensitive demo data.
-- [ ] Remove secrets, private user data, transient diagnostics, and misleading historical
+- [x] Agree the audience, duration, narrative, and live-demo versus recorded-demo balance.
+- [x] Build the slide deck from the accepted architecture and E2E evidence.
+- [x] Record a clean scripted Production walkthrough using non-sensitive demo data.
+- [x] Remove secrets, private user data, transient diagnostics, and misleading historical
   screenshots.
-- [ ] Verify every screenshot/video frame matches the final served revision and current
+- [x] Verify every screenshot/video frame matches the final served revision and current
   documentation.
-- [ ] Use a separate media-production workflow; do not reopen accepted feature scope unless rehearsal
+- [x] Use a separate media-production workflow; do not reopen accepted feature scope unless rehearsal
   finds a genuine product defect.
 
 ## Final definitions
 
 - **Asset Picker delivered:** Phase 1 complete — achieved 2026-09-20.
-- **Fast-track portfolio demo ready:** **technical evidence met on the final #320 build; status
-  publication pending**. Phases 1-2 are accepted; B3 and A4 certify the older candidate; the
+- **Fast-track portfolio demo ready:** **technical evidence and status publication are complete on
+  the final #320 build.** Phases 1-2 are accepted; B3 and A4 certify the older candidate; the
   final-build operator-script review, rehearsal, targeted #3–#6 dispositions and accepted
   post-#320 full suite are recorded with their distinct limits. The three suite-created users were
-  cleaned up under separate approval C. The dashboard's remaining fast-track condition is merging
-  this latest status update on `main`. The verdict stays `PASS_WITH_EXPECTED_DEFECTS`, and the seven
+  cleaned up under separate approval C. The verdict stays `PASS_WITH_EXPECTED_DEFECTS`, and the seven
   non-USD #3 value checks remain INCONCLUSIVE, not PASS. This narrower exit does not imply A5,
   exhaustive backlog closure, polished media or `1.0.0`.
-- **Project freeze:** requires first (owner direction, 2026-09-25) reconciling and auditing the
-  existing roadmap, runbooks and backlog, which need not wait, and the LinkedIn, resume, PPT and
-  video package, whose content awaits the brainstorming session. Do not mislabel those unchecked
-  items as completed.
+- **Project freeze:** still requires the remaining documentation reconciliation, Git-only restart
+  verification, maintenance ownership and approved private-artifact handling. The LinkedIn, resume,
+  PPT and video package is complete and must not be listed as pending work.
