@@ -51,7 +51,7 @@
 - Test: updated Markdown links in the modified documents
 
 - [x] Run the status-propagation suite: 33/33 tests pass.
-- [x] Resolve every local Markdown link added or changed by the documentation change: 198 local targets pass.
+- [x] Resolve every local Markdown link across the closeout documents and B2 ledger: 241 local targets pass.
 - [x] Inspect the final diff; the documentation-only change passed review-readiness validation.
 
 ## Self-review

@@ -327,7 +327,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **CLOSEOUT READY:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | the verification record is durable in merged `main` through #337 (`1aa129af`); the freeze handoff records the project owner as sole maintenance/cost owner and retains microservices at `min_replicas = 0` |
+| 5 — Documentation | **COMPLETE:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | the verification record is durable in merged `main` through #337 (`1aa129af`); the freeze handoff records the project owner as sole maintenance/cost owner and retains microservices at `min_replicas = 0` |
 | 6 — Demo material | **COMPLETE:** the post-fix rehearsal ran on the #320 build and restored the E2E account identical to its verified baseline. The LinkedIn, resume, PPT and video package was subsequently created and reviewed; audience, duration, narrative and live-versus-recorded form are agreed | Run the demo with the script's warm-up |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -993,9 +993,9 @@ The backlog remains explicit and deferred for a future restart: 33 directories c
   provide the operator, evidence and restart material; the backlog index remains the source for
   deferred work.
 - [x] Cross-check SHAs, revisions, flags, counts, links, and status claims before publication.
-  The repository status-propagation suite passes (33/33), and 198 local Markdown links resolve in
-  the documentation change. Those checks are review evidence; they do not themselves establish a
-  merge.
+  The repository status-propagation suite passes (33/33), and 241 local Markdown links resolve
+  across the closeout documents and B2 ledger. Those checks are review evidence; they do not
+  themselves establish a merge.
 
 Mandatory factual status records may be updated earlier. The comprehensive documentation pass
 belongs here and must not delay Phase 1.
