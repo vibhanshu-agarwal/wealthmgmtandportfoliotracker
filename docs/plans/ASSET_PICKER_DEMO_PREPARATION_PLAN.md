@@ -539,8 +539,8 @@ or D11 response-content evidence; A4 run 3 subsequently exercised those behavior
 The accepted 320px/375px overflows remain open backlog. Task 7 is complete. A4 run 3 met the
 pre-#320 Phase 3 exit; after #320 and the subsequent data repairs changed the candidate, the
 post-fix suite met the new technical gate on 2026-09-25. The final-build rehearsal also ran that
-day. Publication of this updated status remains the dashboard's fast-track gate. A5 is optional
-independent attestation.
+day. The status publication merged through #323 at `d515aa5b`; no technical or status-publication
+fast-track gate remains. A5 is optional independent attestation.
 
 ### Immediate fast-track sequence
 
@@ -567,7 +567,7 @@ independent attestation.
 3. **#320 repair batch — DEPLOYED, targeted demo checks and dispositions recorded.** The seven
    symbol remaps, historical price repair and #3–#6 session are recorded above and in Phase 4. Do
    not promote them into full multi-user certification or relabel inconclusive cases as PASS.
-4. **Post-fix technical gate — MET; status publication pending.**
+4. **Post-fix technical gate and status publication — COMPLETE.**
    - **Rehearsal, COMPLETE:** the operator script's rehearsed copy ran against the #320 build
      on 2026-09-25 and restored the E2E account exactly (dashboard). Its later wording amendment
      was not re-rehearsed.
