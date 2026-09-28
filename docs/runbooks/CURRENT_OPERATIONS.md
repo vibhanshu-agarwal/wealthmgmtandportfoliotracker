@@ -5,10 +5,10 @@ creation or mutation, secret/cloud/database access, dispatch, deploy, repair, ro
 cleanup need their applicable bounded approval. Documentation publication and merge also remain
 separate decisions. This guide grants no new authority and revives no historical approval.
 
-**Reconciliation date:** 2026-09-28 UTC. The restart kit is filed through #335 at `66e5064f` and
-was later checked from `main@59af233e` (PR #336), following the earlier operational
-reconciliation at `main@d515aa5b`. This is a source/accepted-evidence guide, not a fresh cloud
-inventory. Start with the [runbook index](README.md); use the
+**Reconciliation date:** 2026-09-28 UTC. The restart kit is filed through #335 at `66e5064f`;
+its clean-clone checks ran from `main@59af233e` (PR #336), and their independently reviewed status
+is filed through `main@1aa129af` (PR #337), following the earlier operational reconciliation at
+`main@d515aa5b`. This is a source/accepted-evidence guide, not a fresh cloud inventory. Start with the [runbook index](README.md); use the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) as the status dashboard.
 "Production" in resource/workflow names denotes this project's deployed **portfolio-demo
 environment**, not an assumption of real customers or a commercial production SLA.
@@ -118,18 +118,21 @@ they are not automatic acceptance for later source or newly reachable delete/wri
 ## 6. Freeze and later restart
 
 Use the [Git-only freeze/restart handoff](PROJECT_FREEZE_HANDOFF.md) for the preserved artifacts,
-historical serving basis and still-unassigned maintenance decisions. Before parking the project, file the reviewed roadmap/runbook/backlog reconciliation and every
-required operator/warm-up script, safe configuration template, decision and restart instruction
-in Git through reviewed, owner-authorized PRs merged into `main`. **Owner direction,
-2026-09-27 UTC: restart must rely on merged Git, not loose worktree documents, unpublished
-branches, chat history or agent memory.** Anything not merged is expendable and must not be a
-required restart dependency. Keep secrets/raw sensitive evidence out of Git; file needed
-sanitized evidence summaries and their limitations. A private-path inventory is not a substitute
-for filing. The [handoff](PROJECT_FREEZE_HANDOFF.md) records the bounded clean-clone verification
-of the required non-secret artifacts and links; it does not establish live readiness. The LinkedIn,
-resume, PPT and video package is complete and reviewed. Choose maintenance responsibility for
-credentials, the manual observability audit and any retained cloud costs; do not assume "frozen"
-suspends Jobs/resources.
+historical serving basis, and recorded retained-resource and maintenance decisions. Before parking
+the project, file the reviewed roadmap/runbook/backlog reconciliation and every required
+operator/warm-up script, safe configuration template, decision and restart instruction in Git
+through reviewed, owner-authorized PRs merged into `main`. **Owner direction, 2026-09-27 UTC:
+restart must rely on merged Git, not loose worktree documents, unpublished branches, chat history
+or agent memory.** Anything not merged is expendable and must not be a required restart
+dependency. Keep secrets/raw sensitive evidence out of Git; file needed sanitized evidence
+summaries and their limitations. A private-path inventory is not a substitute for filing. The
+[handoff](PROJECT_FREEZE_HANDOFF.md) records the bounded clean-clone verification of the required
+non-secret artifacts and links; it does not establish live readiness. The LinkedIn, resume, PPT
+and video package is complete and reviewed.
+
+This is a one-person pilot project: the project owner is the sole maintenance and cost owner.
+Perform the manual observability/allowance review at intervals no greater than 31 days and retain
+each microservice at `min_replicas = 0`; do not assume "frozen" suspends Jobs/resources.
 No shutdown, rotation, schedule change, cleanup or recurring automation is authorized here.
 
 On restart: read the dashboard and backlog first; refresh Git state and inspect source/workflow

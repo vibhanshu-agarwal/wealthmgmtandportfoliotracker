@@ -7,10 +7,10 @@ are green. No deployment or live operations." The restart kit subsequently merge
 at `66e5064f`. This historical approval is not authority for live access, credentials, cloud
 reads, dispatch, deployment, rotation, shutdown or cleanup.
 
-**Current checked source:** 2026-09-28 UTC, `main@59af233ee0fcea7c07a95b528418ed665401e69b`
-(PR #336), after the restart kit merged through #335 and the media-package status through #336.
-This task inspects local source and retained sanitized status; it makes no fresh endpoint, Azure,
-database, secret or billing read. The owner requires restart from merged Git: no loose worktree
+**Current checked source:** 2026-09-28 UTC, `main@1aa129af5d9e3090052038d904b40688e58b7f65`
+(PR #337). The clean-clone checks themselves ran against `main@59af233e` (PR #336); #337 filed
+their independently reviewed status. This task inspects local source and retained sanitized status;
+it makes no fresh endpoint, Azure, database, secret or billing read. The owner requires restart from merged Git: no loose worktree
 documents, unpublished branches, chat history or agent memory may be necessary dependencies.
 
 ## 1. What is accepted, and what is not
@@ -72,16 +72,24 @@ record must be required to operate the kit; new live verification needs fresh au
 
 ## 3. Maintenance decisions before parking the project
 
-The owner must name who owns maintenance and choose whether to retain the deployed demo.
-This handoff records **unassigned decisions**, not an agreed recurring service:
+**Resource-retention decision recorded — 2026-09-28:** retain the deployed resources during the
+indefinite freeze; do not shut them down. Keep every microservice at `min_replicas = 0`.
+This is the owner's retained-resource policy, not a fresh Azure configuration read or approval to
+apply infrastructure changes.
 
-| Decision | Why it remains necessary |
+**Maintenance/cost ownership recorded - 2026-09-28:** this is a one-person pilot project. The
+project owner is the sole maintainer and cost owner during the freeze. That responsibility covers
+the manual allowance audit, decisions about residual retained-resource costs, secure credential/access
+recovery, and domain/provider continuity. It does not create a recurring automation or authorize an
+infrastructure, cloud, credential, or schedule change.
+
+| Decision | Recorded policy or responsibility |
 |---|---|
-| Retain versus shut down resources, and cost owner | Scale-to-zero is not zero spend; Jobs, storage, logging and external services can continue. Shutdown/apply needs a separate reviewed operation. |
-| Manual allowance audit owner/cadence | [Observability](OBSERVABILITY.md) requires manual audits at intervals no greater than 31 days. No monitor or automation was created here. Confirm actual billing/caps only under approved reads. |
-| Credentials, identities and access recovery | Arrange a secure source for renewed application/cloud credentials and access; don't depend on an old local secrets file. Rotation or export is separately authorized. |
-| Domain/TLS and provider/model continuity | Expiry, model availability, provider symbols and stored data can change during the pause. Choose maintenance responsibility; no current expiry or provider health is claimed here. |
-| Private evidence/worktree cleanup | Inventory first, retain only needed sanitized Git records, then get target-specific cleanup approval. Expendable does not itself mean authorized deletion. |
+| Resource retention | **Resolved:** retain deployed resources; do not shut them down. Keep every microservice at `min_replicas = 0`. Scale-to-zero is not zero spend: Jobs, storage, logging and external services can continue. |
+| Manual allowance audit owner/cadence | **Resolved:** project owner; [Observability](OBSERVABILITY.md) requires a manual audit at intervals no greater than 31 days. No monitor or automation is created here. Actual billing/cap reads need the applicable approval. |
+| Credentials, identities and access recovery | **Owner responsibility:** maintain a secure source for renewed application/cloud credentials and access; do not depend on an old local secrets file. Rotation or export remains separately authorized. |
+| Domain/TLS and provider/model continuity | **Owner responsibility:** review expiry, model availability, provider symbols and stored data as needed. No current expiry or provider-health claim is made here. |
+| Private evidence/worktree cleanup | **Owner decision:** retain the identified private agent-memory artifact untouched in place. This handoff authorizes no read, commit, move, backup, or deletion; any future disposition needs target-specific approval. |
 
 Source schedules at this cut: the market refresh Job is `0 8 * * *` (08:00 UTC); Azure-profile
 FX cache refresh is 06:00 with no explicit scheduled-method timezone. FX also depends on the
@@ -166,16 +174,18 @@ link as broken.
 ## 5. Remaining freeze sequence
 
 1. The kit was filed through #335 at `66e5064f`; #336 at `59af233e` records the completed media
-   package. This merged-main verification record becomes durable when its independently reviewed
-   carrying change merges.
+   package. The merged-main verification record is durable through #337 (`1aa129af`).
 2. The full clean-clone offline checks above passed; retain their bounded, non-live scope.
-3. Settle the maintenance decisions above.
+3. The project owner maintains the retained resources under the stated manual-review boundary.
 4. The LinkedIn, resume, PPT and video package is complete and reviewed; its agreed audience,
    duration, narrative and live-versus-recorded form are recorded in the demo preparation plan.
-5. Inventory remaining private artifacts/worktrees and execute only specifically approved
-   cleanup. Preserve a final accurate Git status handoff before the long pause.
+5. Leave the identified private agent-memory artifact untouched. Other private evidence retains its
+   existing documented handling status. Any future cleanup or other disposition needs a
+   target-specific owner decision; preserve a final accurate Git status handoff before the long
+   pause.
 
 The existing app's technical demo gates are not reopened just by this preservation task.
-The project freeze is not complete: maintenance choices and private hygiene still need their own
-steps. This verification record becomes durable when its independently reviewed carrying change
-merges.
+The documentation closeout is content-complete; this candidate still needs independent review and
+an owner-authorized PR/merge to become durable. The identified private agent-memory artifact is
+deliberately retained untouched; other private evidence retains its existing documented handling
+status. The preceding verification record is durable in merged `main` through #337 (`1aa129af`).
