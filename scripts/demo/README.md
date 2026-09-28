@@ -4,7 +4,8 @@
 Running the offline tests below does not authorize sign-in, chat, edits, a live rehearsal,
 cloud/secret access, deployment or cleanup. On 2026-09-27 UTC the owner approved publication
 and a merge commit once all applicable CI checks are green, with no deployment or live operations.
-The kit is filed when its carrying PR merges into main; unmerged copies are candidates.
+The kit is filed in `main` through #335 at `66e5064f`; that publication does not authorize
+live execution.
 
 Use the [operator guide](../../docs/runbooks/DEMO_OPERATOR.md) and
 [freeze/restart handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). Do not run a live
@@ -65,10 +66,11 @@ against a browser or live session.
 The named 33-test suite verifies `scripts/check_master_plan_status_propagation.py`; it is
 distinct from the CI changed-path classifier, `scripts/classify_changed_paths.py`.
 
-Fresh clean-clone results (54 warm-up checks and the bounded syntax/fixture checks) are recorded
-in the [handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md). They are offline evidence,
-not a fresh live rehearsal. Independent reviewer clearance at `0ad791ae` is recorded separately;
-it does not broaden the offline verification scope.
+The [handoff](../../docs/runbooks/PROJECT_FREEZE_HANDOFF.md) records both the initial candidate
+check and the later full clone of merged `main@59af233e`: 54 warm-up checks, bounded syntax and
+fixture checks, 33 status-propagation tests and local restart-document paths. They are offline
+evidence, not a fresh live rehearsal. Independent reviewer clearance at `0ad791ae` is recorded
+separately; it does not broaden the offline verification scope.
 
 ## Runtime limits that matter
 

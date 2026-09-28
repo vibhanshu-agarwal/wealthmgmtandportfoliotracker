@@ -3,13 +3,13 @@
 **Owner approval required before live execution:** approve a bounded session, account and target
 before health wakes, sign-in, chat or edits. This guide creates no accounts, grants no deployment
 or recovery authority, and does not authorize cleanup. The owner approved this kit's publication
-and conditional green-CI merge commit on 2026-09-27 UTC, not live execution. An unmerged copy
-is a candidate; filing follows the carrying PR's merge into main.
+and conditional green-CI merge commit on 2026-09-27 UTC, not live execution. The kit was filed
+through #335 at `66e5064f`; that merge does not authorize a live session.
 
 **Prepared:** 2026-09-27 UTC from the prior reviewed operator flow and merged status at
 `main@cedbb5af`. Independent review of `1fecc1f8` required corrections, cleared at `0ad791ae`
-on 2026-09-27 UTC. Publication and conditional green-CI merge are owner-approved. The reconciled guide
-has **not been live-rehearsed**.
+on 2026-09-27 UTC. The reconciled guide was filed through #335 at `66e5064f` and has **not been
+live-rehearsed**.
 Historical acceptance and evidence limits remain in the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md). The
 [kit inventory](../../scripts/demo/README.md) preserves the helpers and their original hashes.
@@ -167,8 +167,8 @@ required. If that cannot be safely verified, stop for the separate recovery deci
   that presentation or postpone. The one request can remain in flight for about 150 seconds
   before a gateway-timeout error appears under the recorded Azure configuration; other errors
   can appear sooner. Do not send another question. If a live answer appears later, distinguish
-  it explicitly from the prepared fallback. The media package still needs brainstorming and
-  preparation; no prepared answer is supplied or assumed to exist in a private folder.
+  it explicitly from the prepared fallback. The media package is complete and reviewed, but this
+  guide supplies no prepared answer and assumes none exists in a private folder.
 - **Market data is unavailable or slow:** say so; omit incomplete figures. Continue presenting
   Portfolio only if its own data is loaded and the applicable safety checks pass. Do not edit
   without GO and the verified baseline, or call missing market data a successful check.

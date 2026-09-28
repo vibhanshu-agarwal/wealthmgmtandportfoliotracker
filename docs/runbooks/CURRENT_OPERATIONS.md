@@ -5,9 +5,10 @@ creation or mutation, secret/cloud/database access, dispatch, deploy, repair, ro
 cleanup need their applicable bounded approval. Documentation publication and merge also remain
 separate decisions. This guide grants no new authority and revives no historical approval.
 
-**Reconciliation date:** 2026-09-27 UTC. Restart-kit source cut: `main@cedbb5af` (#334),
-following the earlier operational reconciliation at `main@d515aa5b`. This is a source/accepted-evidence guide, not a
-fresh cloud inventory. Start with the [runbook index](README.md); use the
+**Reconciliation date:** 2026-09-28 UTC. The restart kit is filed through #335 at `66e5064f` and
+was later checked from `main@59af233e` (PR #336), following the earlier operational
+reconciliation at `main@d515aa5b`. This is a source/accepted-evidence guide, not a fresh cloud
+inventory. Start with the [runbook index](README.md); use the
 [demo preparation plan](../plans/ASSET_PICKER_DEMO_PREPARATION_PLAN.md) as the status dashboard.
 "Production" in resource/workflow names denotes this project's deployed **portfolio-demo
 environment**, not an assumption of real customers or a commercial production SLA.
@@ -32,9 +33,9 @@ Cleanup query/count and login-proof limitations remain as recorded in the dashbo
 
 1. Use the repository [operator guide](DEMO_OPERATOR.md) and [preserved kit](../../scripts/demo/README.md),
    with its source hashes and offline checks. The helpers are unchanged; the reconciled guide
-   is a not-live-rehearsed rewrite with review corrections cleared at `0ad791ae`.
-   The kit is durable only
-   after its owner-authorized carrying PR merges into main. Stop if required files/checks are
+   is a not-live-rehearsed rewrite with review corrections cleared at `0ad791ae`. The kit is
+   durable in `main` through #335 at `66e5064f`, and its bounded full-clone verification is
+   recorded in the [handoff](PROJECT_FREEZE_HANDOFF.md). Stop if required files/checks are
    missing; do not fall back to a workstation-specific historical path.
 2. Confirm the approved target/build/account and that no other session or E2E workflow uses
    the account during the walkthrough. Resolve credentials through approved private inputs;
@@ -124,11 +125,11 @@ in Git through reviewed, owner-authorized PRs merged into `main`. **Owner direct
 branches, chat history or agent memory.** Anything not merged is expendable and must not be a
 required restart dependency. Keep secrets/raw sensitive evidence out of Git; file needed
 sanitized evidence summaries and their limitations. A private-path inventory is not a substitute
-for filing. Verify the required non-secret artifacts and links from a clean clone before declaring
-the handoff complete; this guide records that requirement, not its completion.
-Brainstorm the LinkedIn, resume, PPT and
-video package before creating it. Choose maintenance responsibility for credentials, the manual
-observability audit and any retained cloud costs; do not assume "frozen" suspends Jobs/resources.
+for filing. The [handoff](PROJECT_FREEZE_HANDOFF.md) records the bounded clean-clone verification
+of the required non-secret artifacts and links; it does not establish live readiness. The LinkedIn,
+resume, PPT and video package is complete and reviewed. Choose maintenance responsibility for
+credentials, the manual observability audit and any retained cloud costs; do not assume "frozen"
+suspends Jobs/resources.
 No shutdown, rotation, schedule change, cleanup or recurring automation is authorized here.
 
 On restart: read the dashboard and backlog first; refresh Git state and inspect source/workflow
