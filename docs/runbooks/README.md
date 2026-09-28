@@ -16,8 +16,8 @@ The [backlog inventory](../todos/backlog/README.md) identifies genuine residual 
 The 2026-09-27 Git-only restart package adds the [operator guide](DEMO_OPERATOR.md),
 [freeze/restart handoff](PROJECT_FREEZE_HANDOFF.md) and [preserved kit](../../scripts/demo/README.md).
 Helpers are copied unchanged; review corrections to the reconciled guide were cleared at
-`0ad791ae`, and the guide is not live-rehearsed. An unmerged copy is a candidate; filing requires
-the carrying PR to merge.
+`0ad791ae`, and the guide is not live-rehearsed. The kit was filed through #335 at `66e5064f`;
+the later merged-main verification is recorded in the freeze handoff.
 
 ## What was reconciled
 
@@ -92,8 +92,10 @@ checks, post-#320 suite and cleanup—not from old runbook serving tables.
 This reconciliation counts as filed only when its independently reviewed, owner-authorized
 carrying PR merges into `main`; an unmerged branch copy remains a candidate.
 Roadmap/root README reconciliation is filed through #326/#334; flow/architecture reconciliation
-and later security/test/source-cleanup status are filed through #328/#330/#333. The Git-only kit,
-maintenance decisions, media brainstorming/package and approved private-artifact/worktree
-cleanup remain separate freeze work. Before a long pause, identify
+and later security/test/source-cleanup status are filed through #328/#330/#333. The Git-only kit
+is filed through #335 and its merged-main verification record becomes durable when its
+independently reviewed carrying change merges. The media package is complete and reviewed.
+Maintenance decisions and approved private-artifact/worktree cleanup remain separate freeze work.
+Before a long pause, identify
 the operator who owns the manual observability audit and approved secret/identity maintenance;
 no schedule, rotation, resource shutdown or recurring monitor was created by this documentation.

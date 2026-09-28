@@ -1,16 +1,17 @@
 # Git-only project freeze and restart handoff
 
-**Approval scope — publication only:** on 2026-09-27 UTC the owner authorized publishing this
-restart package and merging with a merge commit once all applicable CI checks are green:
+**Completed publication scope — historical:** on 2026-09-27 UTC the owner authorized publishing
+this restart package and merging with a merge commit once all applicable CI checks are green:
 "Publish the restart-kit bundle and merge with a merge commit once all applicable CI checks
-are green. No deployment or live operations." This is not authority for live access,
-credentials, cloud reads, dispatch, deployment, rotation, shutdown or cleanup.
-Required artifacts count as durable only when their carrying PR merges into main.
+are green. No deployment or live operations." The restart kit subsequently merged through #335
+at `66e5064f`. This historical approval is not authority for live access, credentials, cloud
+reads, dispatch, deployment, rotation, shutdown or cleanup.
 
-**Source cut:** 2026-09-27 UTC, `main@cedbb5af` (PR #334). This task inspects local source and
-retained sanitized status; it makes no fresh endpoint, Azure, database, secret or billing read.
-The owner requires restart from merged Git: no loose worktree documents, unpublished branches,
-chat history or agent memory may be necessary dependencies.
+**Current checked source:** 2026-09-28 UTC, `main@59af233ee0fcea7c07a95b528418ed665401e69b`
+(PR #336), after the restart kit merged through #335 and the media-package status through #336.
+This task inspects local source and retained sanitized status; it makes no fresh endpoint, Azure,
+database, secret or billing read. The owner requires restart from merged Git: no loose worktree
+documents, unpublished branches, chat history or agent memory may be necessary dependencies.
 
 ## 1. What is accepted, and what is not
 
@@ -48,11 +49,11 @@ Prefixes above are navigation aids, not executable digest pins. For a future rel
 the full current SHA/digest and a fresh reviewed packet. No historical hash or revision is
 a safe rollback command.
 
-## 2. Required artifacts now in this candidate bundle
+## 2. Required artifacts now in merged Git
 
 - [Operator guide](DEMO_OPERATOR.md): secure sign-in, warm-up, baseline hard stop, edit/reverse
-  and exact restore. Independent review cleared the corrections at `0ad791ae`; publication
-  and conditional green-CI merge are owner-approved. The guide has not been re-rehearsed.
+  and exact restore. Independent review cleared the corrections at `0ad791ae`; the kit is filed
+  through #335 at `66e5064f`. The guide has not been re-rehearsed.
 - [Preserved kit and hashes](../../scripts/demo/README.md): warm-up, its localhost test/mock,
   signed-in snapshot reader and verifier. Helpers are unchanged; no app implementation.
 - Configuration examples already tracked: [.env.example](../../.env.example) and
@@ -104,7 +105,7 @@ Current workflow monitoring is manual-dispatch, not an assumed nightly demo assu
 6. Build a fresh bounded packet for any deploy/repair/cleanup. Do not replay old seed/reset,
    Mongo repair, offset reset, rollback or account-cleanup commands.
 
-**Candidate clean-checkout verification — 2026-09-27 UTC:** a fresh, shallow local clone of
+**Initial candidate clean-checkout verification — 2026-09-27 UTC:** a fresh, shallow local clone of
 `5b1fad269f5a892cededbe98a71774b566306349` (tree
 `3bffb298cc14ebf4e3e238962ef99723f6046dab`) contained only tracked checkout files and remained
 clean after checks. It required no old private kit, credential or live target.
@@ -134,22 +135,47 @@ Runtime versions were Windows PowerShell 5.1.26100.9549, Node 26.5.0 and Python 
 These are the observed test runtimes, not new minimum-version commitments. The subsequent
 recording changes only documentation, not these tested helpers/fixtures. The full application
 suite and live browser flow were not run by this task; future CI does not automatically run the
-new warm-up suite. Review clearance is recorded; owner-authorized publication/merge and a
-post-merge clean-main check remain required before
-calling the Git-only handoff filed and verified. No live readiness is implied by these results.
+new warm-up suite. Review clearance is recorded. No live readiness is implied by these results.
+
+**Merged-main clean-clone verification — 2026-09-28 UTC:** a separate full clone of
+`main@59af233ee0fcea7c07a95b528418ed665401e69b` was clean before and after the checks. It used
+only tracked files, the Codex workspace-dependency Python runtime, Windows PowerShell, Node, a
+localhost mock and synthetic fixtures. That Python runtime is supplied by Codex tooling rather
+than this repository. It did not read an actual secret file or contact a live/cloud target.
+
+| Offline check | Result |
+|---|---|
+| Preserved helper SHA-256 and checkout attributes | 5/5 hashes matched the preserved-kit table; the five helpers and two fixtures checked out as LF |
+| Restart-document relative paths | 121 local Markdown paths in the six restart documents resolved; zero missing targets. This checks paths only, not anchors or external URLs. |
+| Tracked configuration examples | `.env.example` and `.env.secrets.example` present; `.env.secrets` absent from tracked files and not read |
+| Warm-up localhost suite | 54/54 checks passed; exit 0; `ALL DEMO-WARMUP TESTS PASSED` |
+| JavaScript syntax | Mock and reader passed `node --check`; the reader was not run in a browser |
+| Snapshot CLI smoke | Same fixture: `IDENTICAL`, exit 0. Changed fixture: `CHANGED AAPL: 1.000 -> 1.001`, exit 1 as deliberately rejected. |
+| Master-plan status propagation suite | 33/33 passed; `Ran 33 tests`, `OK` |
+
+Windows PowerShell was `5.1.26100.9549`, Node was `v26.5.0`, and the Codex workspace-dependency
+Python runtime was `3.12.14`. Independent review also reproduced the checks with Python `3.14.4`.
+The full application suite and a live browser flow were not run. A reviewed carrying merge makes
+this documentation a durable restart record. No live readiness is implied.
+
+**Windows restart-path note:** the longest tracked repository-relative path is 120 characters.
+Clone into a short path on Windows. If a deep checkout reports a missing target that Git tracks,
+enable `core.longpaths=true` for that clone and rerun the check before classifying the document
+link as broken.
 
 ## 5. Remaining freeze sequence
 
-1. Review cleared at `0ad791ae`; owner approved publication and a conditional green-CI merge
-   commit. Filing follows the carrying PR's merge into main. Later recording updates change
-   review/publication status and the two non-blocking wording notes only.
-2. Confirm offline artifacts/links from a clean checkout of the merged result.
+1. The kit was filed through #335 at `66e5064f`; #336 at `59af233e` records the completed media
+   package. This merged-main verification record becomes durable when its independently reviewed
+   carrying change merges.
+2. The full clean-clone offline checks above passed; retain their bounded, non-live scope.
 3. Settle the maintenance decisions above.
-4. Brainstorm the LinkedIn, resume, PPT and video package with the owner and Claude **before**
-   drafting materials; then create/review/file the agreed package.
+4. The LinkedIn, resume, PPT and video package is complete and reviewed; its agreed audience,
+   duration, narrative and live-versus-recorded form are recorded in the demo preparation plan.
 5. Inventory remaining private artifacts/worktrees and execute only specifically approved
    cleanup. Preserve a final accurate Git status handoff before the long pause.
 
 The existing app's technical demo gates are not reopened just by this preservation task.
-The project freeze is not complete: maintenance choices, media and private hygiene still need
-their own steps.
+The project freeze is not complete: maintenance choices and private hygiene still need their own
+steps. This verification record becomes durable when its independently reviewed carrying change
+merges.
