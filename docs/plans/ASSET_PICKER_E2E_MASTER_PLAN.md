@@ -1,11 +1,13 @@
 # Asset Picker — E2E Master Plan to Production
 
-> **Owner approval required:** push/PR and merge of this later documentation candidate.
+> **Publication boundary:** a later change to this plan needs independent review and owner approval
+> for its pull request and merge. The merged status below is historical evidence, not authority for
+> a deployment or live operation.
 > Header-test #331 and advisor-cleanup #332 are merged; cleanup is not deployed.
-> Completed advisor Gates A–D authorize no new deployment or live operation. Gate E is skipped by
-> owner decision, not performed. Until merged, this documentation copy is a candidate.
+> Completed advisor Gates A–D authorize no new deployment or live operation. Gate E was skipped by
+> owner decision and was not performed.
 
-The accepted runtime/program-state code baseline is unchanged by this documentation draft.
+The accepted runtime/program-state code baseline is unchanged by this documentation reconciliation.
 
 **Accepted follow-ups, now merged — 2026-09-27 UTC:** header proof `c647b6f0` and retained
 advisor cleanup `3638aec2` plus `52dd6e20`, both based on `main@e03d6cc4`, are reviewed and

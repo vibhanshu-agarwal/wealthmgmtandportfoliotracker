@@ -213,8 +213,7 @@ the matrix/consensus and Git-only requirement correction, filed through #334 at 
 (2026-09-27 07:33:20 UTC). The operator-kit/restart package was reviewer-cleared at `0ad791ae`
 and filed through #335 at `66e5064f`; the completed media-package status is filed through #336
 at `59af233e`. A fresh full clone of that merged main revision passed the bounded offline restart
-checks recorded below; this verification record becomes durable when its independently reviewed
-carrying change merges.
+checks recorded below; the verification record is durable in merged `main` through #337 (`1aa129af`).
 #323 (`d515aa5b`, 2026-09-25) filed the accepted suite and cleanup status. The post-#320 suite and
 three-user cleanup are complete under approvals R and C; the verdict remains
 `PASS_WITH_EXPECTED_DEFECTS`, not clean PASS.
@@ -223,11 +222,7 @@ the targeted-check status at `b4e989b3`; [PR #321](https://github.com/vibhanshu-
 merged at `c4e58f1c`, and [PR #319](https://github.com/vibhanshu-agarwal/wealthmgmtandportfoliotracker/pull/319)
 closed unmerged.
 
-**Required before the eventual project freeze:** the remaining documentation and restart work is
-not a fast-track demo blocker.
-- **Reconcile and audit the existing documents.** The [roadmap](../../ROADMAP.md), the
-  [operational runbooks](../runbooks/) and the [backlog](../todos/backlog/) already exist; they need
-  reconciling with the delivered state.
+**Project-freeze status:** the [roadmap](../../ROADMAP.md), [operational runbooks](../runbooks/), and [backlog](../todos/backlog/) are reconciled with the Git-only restart record and do not block the accepted fast-track demo. This status becomes durable when its independently reviewed carrying change merges into `main`.
 - **Media and career package — COMPLETE and reviewed.** The LinkedIn, resume, PPT and video
   package was created and reviewed across multiple rounds. Its audience, duration, narrative and
   live-versus-recorded form were agreed during those completed reviews.
@@ -332,7 +327,7 @@ unchanged. Both runs were attempt 1 and passed. No A5 capture is recorded.
 | 2 — UI and demo-critical fixes | **COMPLETE at its accepted exit**; #320's later build was rehearsed, targeted-checked and suite-tested within the stated coverage | Keep the accepted limitations visible; do not infer every edge case was tested |
 | 3 — Broad desktop Production E2E | **Post-#320 suite accepted** as `PASS_WITH_EXPECTED_DEFECTS`; all 15 scenarios passed and this run's three users were cleaned up. A4 run 3 remains old-build history, with runs 1-2 still FAIL history | No further full-suite run is planned; any material new fix would require reassessment |
 | 4 — Defect disposition | **Prior demo disposition recorded:** #320 repairs, targeted #3–#6 checks and the suite's expected defect retain their accepted limits. Price-write and advisor IDOR are CLOSED after their separate merge/deploy/probe evidence. Header proof is CLOSED through #331 (`d439d3a2`); advisor cleanup is merged through #332 (`bd1c325f`), not deployed. Gate E is NOT PERFORMED, skipped by owner decision | Scope any cleanup deployment separately. Preserve demo/probe limits and distinct smoke/config/seed follow-ups. No Gate E task is required |
-| 5 — Documentation | **IN PROGRESS:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | This verification record becomes durable when its independently reviewed carrying change merges; assign maintenance responsibilities |
+| 5 — Documentation | **COMPLETE:** suite/cleanup #323, backlog #324, runbooks #325, roadmap/README/v5 #326, flow/architecture and price-write closure #328, advisor closure #330, header/advisor-cleanup status #333, matrix/Git-only requirement #334 (`cedbb5af`), and the restart kit #335 (`66e5064f`) are filed. The media-package status is filed through #336 (`59af233e`). A full clean-clone verification of `main@59af233e` passed its bounded offline checks | the verification record is durable in merged `main` through #337 (`1aa129af`); the freeze handoff records the project owner as sole maintenance/cost owner and retains microservices at `min_replicas = 0` |
 | 6 — Demo material | **COMPLETE:** the post-fix rehearsal ran on the #320 build and restored the E2E account identical to its verified baseline. The LinkedIn, resume, PPT and video package was subsequently created and reviewed; audience, duration, narrative and live-versus-recorded form are agreed | Run the demo with the script's warm-up |
 
 **Technical demo evidence is complete within its stated scope:** the post-#320 suite, targeted
@@ -425,12 +420,13 @@ traffic; the owner-operated Phase 3 desktop suite completes once uncontended wit
 uncollected scenario counted as a pass; Production state is restored or its retained state recorded;
 and no unresolved finding blocks the agreed live demo. A verdict with expected defects must name
 them and be accepted explicitly, not be relabeled PASS. Record accepted non-blocking findings and a
-short operator script. Full Phase 5 documentation, the remaining freeze work (reconciling the
-existing roadmap, runbooks and backlog; restart verification, maintenance ownership and approved
-private-artifact handling) and an
-independent A5 before/after Azure attestation are **not** fast-track demo blockers. The freeze
-work is still required before project freeze. The B3 run-bound revision/digest
-proof supplies the serving identity needed for this narrower exit. A5 remains available as optional
+short operator script. Full Phase 5 documentation, the freeze record (reconciled roadmap,
+runbooks and backlog; Git-only restart verification; the sole owner-maintainer/cost decision; and
+the owner-directed retention of the identified private agent-memory artifact) and an independent
+A5 before/after Azure attestation are **not**
+fast-track demo blockers. This documentation status becomes durable when its independently
+reviewed carrying change merges into `main`. The B3 run-bound revision/digest proof
+supplies the serving identity needed for this narrower exit. A5 remains available as optional
 corroboration under its own approval; it is not silently marked complete.
 
 **Portfolio-project scope:** desktop demo only; do not add mobile-browser certification, broad
@@ -582,10 +578,10 @@ fast-track gate remains. A5 is optional independent attestation.
    - **Status publication complete:** #323 merged at `d515aa5b`. The later backlog audit has
      its own review/publication step and is freeze documentation, not a reopened technical gate.
    - **Keep in the script:** the chat fallback, the known limitations and the warm-up/keep-alive.
-   - **Before project freeze:** reconcile and audit the existing roadmap, runbooks and backlog;
-     verify the Git-only restart record, assign maintenance ownership and handle approved private
-     artifacts. The LinkedIn, resume, PPT and video package is complete and reviewed. A full
-     architecture rewrite and `1.0.0` can follow after the demo.
+   - **For the indefinite project freeze:** the roadmap, runbooks and backlog are reconciled; the
+     Git-only restart record is verified; the project owner is the sole maintainer/cost owner; and
+     the identified private agent-memory artifact is retained untouched. The LinkedIn, resume, PPT
+     and video package is complete and reviewed. A full architecture rewrite and `1.0.0` can follow after the demo.
 
 ## Owner approval callouts
 
@@ -909,8 +905,8 @@ will be retained. Filing and cleanup require their own approvals; this is not de
 - [x] Inventory and file the required operator/warm-up scripts, relevant tests, safe configuration
   templates, decisions and maintenance/restart instructions. Five unchanged helpers, synthetic
   fixtures, a reconciled operator guide and the [freeze handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md)
-  are filed through #335 at `66e5064f`. The handoff records unassigned maintenance choices rather
-  than inventing an owner or recurring operation.
+  are filed through #335 at `66e5064f`. The freeze handoff records the project owner as
+  sole maintenance/cost owner without creating a recurring automation.
 - [x] File necessary sanitized evidence/verdict summaries in Git. The handoff and existing verdict
   records retain the restart-relevant scope and limitations; historical raw evidence is explicitly
   identified as private and not retained in Git.
@@ -921,8 +917,7 @@ will be retained. Filing and cleanup require their own approvals; this is not de
   both snapshot outcomes, and 121 local Markdown-path checks with zero missing targets. Both
   configuration examples were present; no actual secret was read. This check used no live/cloud
   access and grants no such authority. The [handoff](../runbooks/PROJECT_FREEZE_HANDOFF.md)
-  records the exact scope; this verification record becomes durable when its independently reviewed
-  carrying change merges.
+  records the exact scope; the verification record is durable in merged `main` through #337 (`1aa129af`).
 
 - [x] Prepare reconciliation of the [roadmap](../../ROADMAP.md), [root README](../../README.md)
   and [enhancements v5](../../roadmap_enhancements_v5.md) against `main@5d559478`; preserve v1–v4
@@ -958,33 +953,49 @@ design and safeguards, assessed later. The owner authorized this correction's PR
 is green on 2026-09-27 UTC. It is filed through #334 at `cedbb5af`; later unmerged copies remain
 candidates. Feature implementation stays deferred.
 It changes no accepted demo verdict or engineering-backlog disposition.
-None of these documentation filings completes the
-wider documentation pass, maintenance handoff or private cleanup; the three
-new feature requests remain deferred and do not block the freeze.
+The earlier documentation filings did not by themselves complete the wider documentation pass or
+record the final maintenance and private-artifact retention decisions. The closeout below completes
+the documentation pass and records those decisions; the three new feature requests remain deferred
+and do not block the freeze.
 
-**Full documentation backlog (not required for fast-track demo-ready):**
+**Documentation closeout:** the reconciled status below becomes durable when its independently
+reviewed carrying change merges into `main`.
+
+The five reconciliations below are based on merged
+`main@1aa129af5d9e3090052038d904b40688e58b7f65` (PR #337). They use the accepted historical
+evidence and do not claim a fresh cloud read, live test, deployment, rollback or data mutation.
+
+The backlog remains explicit and deferred for a future restart: 33 directories contain 11 fixed/completed items, 2 superseded items and 20 open items. Those product, security, coverage and maintenance entries are not hidden by this documentation closeout and do not reopen the accepted desktop-demo scope.
 
 - [x] Prepare the root README/ROADMAP/v5 update with delivered capabilities and honest remaining
-  limitations; independent review and filing follow the rule above. Other READMEs, architecture,
-  release and detailed flow documents remain outside this root-document reconciliation.
-- [ ] Reconcile Asset Picker requirements, design, task ledger, and master plan with exact Production
-  evidence.
-- [ ] Update architecture diagrams and component/data-flow descriptions where deployed behavior
-  changed.
-  The [architecture folder](../architecture/README.md) is source-reconciled against
-  `main@8aa4035b` (2026-09-26 UTC), including the PlantUML source, current references and
-  historical classification. That source audit is reviewed and filed through #328 (`598bdf17`);
-  the broader deployed-behavior reconciliation remains open. No diagram rendering or fresh
-  serving-state verification is claimed. This later advisor-status update has its own filing gate.
-- [ ] Document signup, authentication, portfolio mutation, conflict, persistence, reset,
-  price/freshness, chatbot, rollback, and multi-user E2E flows.
-  The four existing [service-flow guides](../e2e-flows/) have been source-audited and corrected
-  against `main@8aa4035b` (2026-09-26 UTC). Their preparation covers the service request/event
-  paths, not a new live acceptance run, a complete rollback procedure or the remaining
-  multi-user/test-lifecycle handoff. This broader box remains open.
-- [ ] Add demo/operator instructions, test-data lifecycle, evidence locations, and known nonblocking
-  backlog.
-- [ ] Cross-check SHAs, revisions, flags, counts, links, and status claims before publication.
+  limitations; the root-document reconciliation is filed through #326 (`8aa4035b`).
+- [x] Reconcile Asset Picker requirements, design, task ledger, and master plan with exact Production
+  evidence. The task ledger and master plan record the exact `main@91f40bd0126f15fc87a6d6beb2ffa6bcd01e76d4`
+  frontend-only deploy, run `35489160653`, served build, Step B `GO`, L0-L9 result and golden-state
+  restoration; requirements and design now state the same completed condition while retaining
+  Task 2.6 as mandatory non-blocking compatibility debt.
+- [x] Update architecture diagrams and component/data-flow descriptions where deployed behavior
+  changed. The six current architecture references and PlantUML source were source-reconciled and
+  filed through #328 (`598bdf17`); the current index also records the later price-write and advisor
+  route-removal closures, header-proof delivery and source-only advisor cleanup. This is a logical
+  source description, not a rendered diagram or a present-serving-state assertion; it does not
+  include diagram rendering, fresh serving-state verification, or the broader deployed-behavior
+  reconciliation.
+- [x] Document signup, authentication, portfolio mutation, conflict, persistence, reset,
+  price/freshness, chatbot, rollback, and multi-user E2E flows. The four service-flow guides,
+  `CURRENT_OPERATIONS.md`, the operator guide and the freeze handoff cover those paths, historical
+  acceptance limits, test-data/golden-state handling, a rollback floor and temporary-account
+  lifecycle. They deliberately retain a rollback floor, not a separate rollback procedure; no
+  standalone multi-user flow guide exists. The broader deployed-behavior reconciliation remains
+  open. They preserve `PASS_WITH_EXPECTED_DEFECTS` and do not substitute a new live acceptance run.
+- [x] Add demo/operator instructions, test-data lifecycle, evidence locations, and known nonblocking
+  backlog. The merged restart kit (#335), media package (#336) and restart-verification filing (#337)
+  provide the operator, evidence and restart material; the backlog index remains the source for
+  deferred work.
+- [x] Cross-check SHAs, revisions, flags, counts, links, and status claims before publication.
+  The repository status-propagation suite passes (33/33), and 241 local Markdown links resolve
+  across the closeout documents and B2 ledger. Those checks are review evidence; they do not
+  themselves establish a merge.
 
 Mandatory factual status records may be updated earlier. The comprehensive documentation pass
 belongs here and must not delay Phase 1.
@@ -1058,7 +1069,10 @@ audience, duration, narrative and live-versus-recorded form are confirmed.
   cleaned up under separate approval C. The verdict stays `PASS_WITH_EXPECTED_DEFECTS`, and the seven
   non-USD #3 value checks remain INCONCLUSIVE, not PASS. This narrower exit does not imply A5,
   exhaustive backlog closure, polished media or `1.0.0`.
-- **Project freeze:** still requires maintenance ownership and approved private-artifact handling.
-  The Git-only restart-verification record becomes durable when its independently reviewed carrying
-  change merges. The LinkedIn, resume, PPT and video package is complete and must not be listed as
-  pending work.
+- **Project freeze:** the project owner is the sole maintenance/cost owner; deployed resources are
+  retained without shutdown, with every microservice at `min_replicas = 0`; and the identified
+  private agent-memory artifact is retained untouched. Other private evidence retains its existing
+  documented handling status. This documentation status becomes durable when its independently
+  reviewed carrying change merges into `main`. The Git-only restart-verification record is durable
+  in merged `main` through #337 (`1aa129af`). The LinkedIn, resume, PPT and video package is
+  complete and must not be listed as pending work.

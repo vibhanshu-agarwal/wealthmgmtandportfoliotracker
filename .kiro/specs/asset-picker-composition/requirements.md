@@ -780,8 +780,8 @@ frontend adapter source merged later at `fd42df7a` through PR #178 / `main@38e3d
 2026-08-29; that is source provenance, not serving proof. Astra independently ACCEPTed Task 2.7's
 historical audit on 2026-09-10. It bounds containment only at the documented ACA path; recorded
 ingress closure makes user-visible impact unproven, not impossible, and does not prove that no
-incompatible frontend artifact, route, cache, or rollback path was exposed. Task 2.6 compatibility
-remains mandatory and Wave 10.2 item 2 remains unsatisfied.
+incompatible frontend artifact, route, cache, or rollback path was exposed. Task 2.6 compatibility remains mandatory non-blocking debt. Wave 10.2 item 2 is complete:
+the accepted Task 2.7 audit together with the B1 Task 4.9 live GO supplied its required evidence.
 
 1. THE client SHALL treat every quantity — on read (`PortfolioResponse`/`HoldingResponse`) and on
    write (the `PUT` body) — as a plain-decimal string, never as a parsed JavaScript `number`, from
@@ -819,8 +819,8 @@ remains mandatory and Wave 10.2 item 2 remains unsatisfied.
 - **The frontend decimal-adapter migration's historical rollout sequencing** (Requirement 8.3) —
   Task 2.7's B1-owned containment/frontend-artifact audit was independently ACCEPTed by Astra on
   2026-09-10. It preserves the conclusion that impact is unproven, not impossible, and records the
-  unresolved frontend artifact, embedded-origin, cache, and rollback identities. Task 2.6
-  compatibility remains mandatory; Wave 10.2 item 2 remains unsatisfied.
+  unresolved frontend artifact, embedded-origin, cache, and rollback identities. Task 2.6 compatibility remains mandatory non-blocking debt; Wave 10.2 item 2 is complete
+through the accepted Task 2.7 audit and the B1 Task 4.9 live GO.
 
 **Closed by owner decision on 2026-09-06, timeouts revised 2026-09-09:** Requirement 7's idle
 threshold is 30 minutes with a strict boundary, and the manual reset remains page-level for this

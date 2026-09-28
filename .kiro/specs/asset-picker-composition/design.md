@@ -399,8 +399,8 @@ containment/frontend-artifact audit is independently ACCEPTed by Astra on 2026-0
 the recorded backend deployments and documented frontend delivery paths, but bounds containment only
 at the recorded ACA boundary. Impact remains unproven, not impossible; contemporaneous frontend
 artifact, embedded-origin, cache, and rollback identities remain unresolved. `fd42df7` /
-`main@38e3d954` is source provenance, not serving proof. Task 2.6 compatibility remains mandatory
-and Wave 10.2 item 2 remains unsatisfied. B2's own
+`main@38e3d954` is source provenance, not serving proof. Task 2.6 compatibility remains mandatory non-blocking debt. Wave 10.2 item 2 is complete:
+the accepted Task 2.7 audit together with the B1 Task 4.9 live GO supplied its required evidence. B2's own
 `DraftRow` state stores quantity as the string the input holds;
 a derived, memoized numeric value is computed only for the estimated-value display, never fed back
 into the draft or the submit payload.
@@ -1441,8 +1441,8 @@ The remaining decimal item is historical. The backend decimal-string source serv
 tolerant frontend adapter source merged. B1's containment/frontend-artifact audit is independently
 ACCEPTed by Astra on 2026-09-10; it bounds containment only at the recorded ACA path. Recorded
 ingress closure leaves impact unproven, not impossible, while contemporaneous frontend artifact,
-embedded-origin, cache, and rollback identities remain unresolved. Task 2.6 compatibility remains
-mandatory and Wave 10.2 item 2 remains unsatisfied. Deployment, live proof, and exposure gates also
+embedded-origin, cache, and rollback identities remain unresolved. Task 2.6 compatibility remains mandatory non-blocking debt. Wave 10.2 item 2 is complete:
+the accepted Task 2.7 audit together with the B1 Task 4.9 live GO supplied its required evidence. Deployment, live proof, and exposure gates also
 remain separate.
 
 **`updatedAt` exposure on `PortfolioResponse` is no longer open.** B2 Task 8.1 delivered the
