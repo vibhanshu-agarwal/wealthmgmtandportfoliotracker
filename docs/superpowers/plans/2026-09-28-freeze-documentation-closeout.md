@@ -44,15 +44,15 @@
 - [x] Record `main@1aa129af` / PR #337 as the merged status filing while retaining `main@59af233e` / PR #336 as the clean-clone test basis.
 - [x] Record the owner decision to retain deployed resources with every microservice at `min_replicas = 0`, the project owner as sole maintenance/cost owner with the existing manual allowance-review cadence, and the identified private agent-memory artifact as retained untouched.
 
-### Task 3: Validate the candidate
+### Task 3: Validate the documentation change
 
 **Files:**
 - Test: `scripts/tests/test_master_plan_status_propagation.py`
 - Test: updated Markdown links in the modified documents
 
 - [x] Run the status-propagation suite: 33/33 tests pass.
-- [x] Resolve every local Markdown link added or changed by this candidate: 198 local targets pass.
-- [x] Inspect the final diff; the documentation-only change is ready to commit for independent review.
+- [x] Resolve every local Markdown link added or changed by the documentation change: 198 local targets pass.
+- [x] Inspect the final diff; the documentation-only change passed review-readiness validation.
 
 ## Self-review
 

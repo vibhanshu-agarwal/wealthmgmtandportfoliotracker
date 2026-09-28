@@ -185,7 +185,7 @@ link as broken.
    pause.
 
 The existing app's technical demo gates are not reopened just by this preservation task.
-The documentation closeout is content-complete; this candidate still needs independent review and
-an owner-authorized PR/merge to become durable. The identified private agent-memory artifact is
-deliberately retained untouched; other private evidence retains its existing documented handling
-status. The preceding verification record is durable in merged `main` through #337 (`1aa129af`).
+The documentation closeout is content-complete and becomes durable when its independently reviewed
+carrying change merges into `main`. The identified private agent-memory artifact is deliberately
+retained untouched; other private evidence retains its existing documented handling status. The
+preceding verification record is durable in merged `main` through #337 (`1aa129af`).
